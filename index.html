@@ -526,6 +526,24 @@
                 font-size: 11px;
             }
         }
+        /* 🔒 預設隱藏除錯功能 */
+    .toggle-debug {
+        display: none !important;
+    }
+
+    #debugPanel {
+        display: none !important;
+    }
+
+    /* 🔓 除錯模式時顯示 */
+    .debug-mode .toggle-debug {
+        display: block !important;
+    }
+
+    .debug-mode #debugPanel {
+        display: block !important;
+    }
+</style>
     </style>
 </head>
 <body>
@@ -612,8 +630,8 @@
         </div>
     </div>
 
-   <script>
-        // 🔧 統一的 API URL 設定 - 只需要改這一個地方
+ <script>
+        // 🔧 統一的 API URL 設定
         const API_CONFIG = {
             BASE_URL: 'https://script.google.com/macros/s/AKfycbxspmt1FDOeYdjRJmMznBRIuvWQj8XR25jaMZW2YMyMrxCr_aFSeYG3lHV4D3DnOmrk/exec'
         };
@@ -628,17 +646,26 @@
         const token = urlParams.get('token') || 'cHVibGlj'; // 預設為一般民眾
         const userLineId = urlParams.get('lineId') || 'unknown';
 
+        // 🔒 檢查除錯模式
+        const isDebugMode = urlParams.has('debug');
+        
         // 除錯日誌
         let debugLogs = [];
 
         function addDebugLog(message, type = 'info') {
-            const timestamp = new Date().toLocaleTimeString();
-            debugLogs.push({ timestamp, message, type });
-            updateDebugPanel();
-            console.log(`[${timestamp}] ${message}`);
+            if (isDebugMode) {
+                const timestamp = new Date().toLocaleTimeString();
+                debugLogs.push({ timestamp, message, type });
+                updateDebugPanel();
+                console.log(`[${timestamp}] ${message}`);
+            } else {
+                console.log(`[DEBUG] ${message}`);
+            }
         }
 
         function updateDebugPanel() {
+            if (!isDebugMode) return;
+            
             const debugInfo = document.getElementById('debugInfo');
             if (debugInfo) {
                 debugInfo.innerHTML = debugLogs.map(log => 
@@ -650,22 +677,30 @@
         }
 
         function toggleDebugPanel() {
+            if (!isDebugMode) return;
+            
             const panel = document.getElementById('debugPanel');
-            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            if (panel) {
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            }
         }
 
-        // 🔧 修正版：getApiUrl 函數
+        // 🔧 初始化除錯模式顯示
+        function initializeDebugMode() {
+            if (isDebugMode) {
+                document.body.classList.add('debug-mode');
+                addDebugLog('🔓 除錯模式已啟用', 'success');
+            }
+        }
+
+        // 🔧 取得API網址
         function getApiUrl(token) {
-            // 使用統一的設定
             const baseUrl = API_CONFIG.BASE_URL;
-            
-            // 加入時間戳防止快取
             const timestamp = new Date().getTime();
             
-            // 根據token決定type
             if (token === 'Y2hhcml0eQ==') { // 'charity' in base64
                 return `${baseUrl}?action=getData&type=charity&_t=${timestamp}`;
-            } else { // 一般民眾 (token === 'cHVibGlj' 或其他)
+            } else { // 一般民眾
                 return `${baseUrl}?action=getData&type=public&_t=${timestamp}`;
             }
         }
@@ -677,7 +712,7 @@
         // LIFF 初始化
         window.addEventListener('load', function() {
             liff.init({
-                liffId: '2007527995-VrMyorMd' // 這裡需要替換為真實的LIFF ID
+                liffId: '2007527995-VrMyorMd'
             }).then(() => {
                 addDebugLog('LIFF 初始化成功', 'success');
             }).catch((err) => {
@@ -685,236 +720,156 @@
             });
         });
 
-      // 🔧 強化版 loadFurnitureData 函數 - 解決 charity 載入問題
-async function loadFurnitureData() {
-    addDebugLog('🚀 開始載入家具資料 (強化版)', 'info');
-    addDebugLog(`🎯 當前 token: ${token}`, 'info');
-    
-    // 如果是本地端測試，直接載入測試資料
-    if (location.protocol === 'file:') {
-        addDebugLog('檢測到本地端測試，載入模擬資料', 'warning');
-        loadTestData();
-        return;
-    }
-    
-    // 判斷資料類型
-    const dataType = token === 'Y2hhcml0eQ==' ? '公益單位' : '一般民眾';
-    addDebugLog(`👤 資料類型: ${dataType}`, 'info');
-    
-    // 🔧 多重嘗試策略
-    const attempts = [
-        // 嘗試1: 標準請求 (含時間戳)
-        () => {
-            const apiUrl = getApiUrl(token);
-            addDebugLog(`📡 嘗試1 - 標準請求: ${apiUrl}`, 'info');
-            return fetch(apiUrl, {
-                method: 'GET',
-                headers: {
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0',
-                    'Accept': 'application/json'
+        // 🔧 強化版載入家具資料函數
+        async function loadFurnitureData() {
+            addDebugLog('🚀 開始載入家具資料', 'info');
+            addDebugLog(`🎯 當前 token: ${token}`, 'info');
+            
+            if (location.protocol === 'file:') {
+                addDebugLog('檢測到本地端測試，載入模擬資料', 'warning');
+                loadTestData();
+                return;
+            }
+            
+            const dataType = token === 'Y2hhcml0eQ==' ? '公益單位' : '一般民眾';
+            addDebugLog(`👤 資料類型: ${dataType}`, 'info');
+            
+            // 🔄 多重嘗試策略
+            const attempts = [
+                // 嘗試1: 標準請求
+                () => {
+                    const apiUrl = getApiUrl(token);
+                    addDebugLog(`📡 嘗試1 - 標準請求: ${apiUrl}`, 'info');
+                    return fetch(apiUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache',
+                            'Expires': '0',
+                            'Accept': 'application/json'
+                        },
+                        cache: 'no-store'
+                    });
                 },
-                cache: 'no-store'
-            });
-        },
-        
-        // 嘗試2: 簡化請求 (不含時間戳)
-        () => {
-            const simpleUrl = `${API_CONFIG.BASE_URL}?action=getData&type=${dataType === '公益單位' ? 'charity' : 'public'}`;
-            addDebugLog(`📡 嘗試2 - 簡化請求: ${simpleUrl}`, 'info');
-            return fetch(simpleUrl, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json'
-                }
-            });
-        },
-        
-        // 嘗試3: 最簡化請求
-        () => {
-            const basicUrl = `${API_CONFIG.BASE_URL}?action=getData&type=${dataType === '公益單位' ? 'charity' : 'public'}`;
-            addDebugLog(`📡 嘗試3 - 最簡化請求: ${basicUrl}`, 'info');
-            return fetch(basicUrl);
-        }
-    ];
-    
-    // 🔄 逐一嘗試不同的請求方式
-    for (let i = 0; i < attempts.length; i++) {
-        try {
-            addDebugLog(`🔄 開始第 ${i + 1} 次嘗試...`, 'info');
-            
-            // 設定超時控制
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => {
-                controller.abort();
-                addDebugLog(`⏰ 第 ${i + 1} 次嘗試超時 (15秒)`, 'warning');
-            }, 15000); // 15秒超時
-            
-            const response = await attempts[i]();
-            clearTimeout(timeoutId);
-            
-            addDebugLog(`📊 第 ${i + 1} 次嘗試回應: ${response.status}`, response.ok ? 'success' : 'error');
-            
-            if (!response.ok) {
-                addDebugLog(`❌ 第 ${i + 1} 次嘗試失敗: HTTP ${response.status}`, 'warning');
-                continue; // 嘗試下一種方法
-            }
-            
-            addDebugLog(`🔄 第 ${i + 1} 次嘗試成功，解析回應...`, 'info');
-            const responseText = await response.text();
-            addDebugLog(`📏 回應長度: ${responseText.length} 字元`, 'info');
-            
-            // 檢查是否為 HTML 錯誤頁面
-            if (responseText.includes('<html') || responseText.includes('<div')) {
-                addDebugLog(`❌ 第 ${i + 1} 次嘗試回傳 HTML，不是 JSON`, 'warning');
-                continue; // 嘗試下一種方法
-            }
-            
-            const result = JSON.parse(responseText);
-            
-            addDebugLog(`📋 第 ${i + 1} 次嘗試 - API 回應檢查:`, 'info');
-            addDebugLog(`  ✓ success: ${result.success}`, 'info');
-            addDebugLog(`  ✓ count: ${result.count}`, 'info');
-            addDebugLog(`  ✓ type: ${result.type}`, 'info');
-            
-            if (result.success && result.data && Array.isArray(result.data)) {
-                furnitureData = result.data;
-                addDebugLog(`✅ 第 ${i + 1} 次嘗試成功載入 ${furnitureData.length} 筆資料`, 'success');
                 
-                // 🔍 顯示載入的資料概要
-                if (furnitureData.length > 0) {
-                    addDebugLog(`📝 第一筆: ${furnitureData[0].家具編號} - ${furnitureData[0].家具名稱}`, 'info');
-                    if (furnitureData.length > 1) {
-                        const lastItem = furnitureData[furnitureData.length - 1];
-                        addDebugLog(`📝 最後一筆: ${lastItem.家具編號} - ${lastItem.家具名稱}`, 'info');
+                // 嘗試2: 簡化請求
+                () => {
+                    const simpleUrl = `${API_CONFIG.BASE_URL}?action=getData&type=${dataType === '公益單位' ? 'charity' : 'public'}`;
+                    addDebugLog(`📡 嘗試2 - 簡化請求: ${simpleUrl}`, 'info');
+                    return fetch(simpleUrl, {
+                        method: 'GET',
+                        headers: { 'Accept': 'application/json' }
+                    });
+                },
+                
+                // 嘗試3: 最基本請求
+                () => {
+                    const basicUrl = `${API_CONFIG.BASE_URL}?action=getData&type=${dataType === '公益單位' ? 'charity' : 'public'}`;
+                    addDebugLog(`📡 嘗試3 - 基本請求: ${basicUrl}`, 'info');
+                    return fetch(basicUrl);
+                }
+            ];
+            
+            // 🔄 逐一嘗試
+            for (let i = 0; i < attempts.length; i++) {
+                try {
+                    addDebugLog(`🔄 開始第 ${i + 1} 次嘗試...`, 'info');
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => {
+                        controller.abort();
+                        addDebugLog(`⏰ 第 ${i + 1} 次嘗試超時 (15秒)`, 'warning');
+                    }, 15000);
+                    
+                    const response = await attempts[i]();
+                    clearTimeout(timeoutId);
+                    
+                    addDebugLog(`📊 第 ${i + 1} 次嘗試回應: ${response.status}`, response.ok ? 'success' : 'error');
+                    
+                    if (!response.ok) {
+                        addDebugLog(`❌ 第 ${i + 1} 次嘗試失敗: HTTP ${response.status}`, 'warning');
+                        continue;
                     }
                     
-                    // 📊 統計資料類型
-                    const categories = [...new Set(furnitureData.map(item => item.種類))];
-                    const locations = [...new Set(furnitureData.map(item => item.所在地縣市))];
-                    addDebugLog(`📊 資料概要: ${categories.length} 種類型, ${locations.length} 個地區`, 'info');
-                    addDebugLog(`📋 種類: ${categories.join(', ')}`, 'info');
+                    const responseText = await response.text();
+                    addDebugLog(`📏 回應長度: ${responseText.length} 字元`, 'info');
+                    
+                    if (responseText.includes('<html') || responseText.includes('<div')) {
+                        addDebugLog(`❌ 第 ${i + 1} 次嘗試回傳 HTML，不是 JSON`, 'warning');
+                        continue;
+                    }
+                    
+                    const result = JSON.parse(responseText);
+                    
+                    addDebugLog(`📋 API 回應檢查:`, 'info');
+                    addDebugLog(`  ✓ success: ${result.success}`, 'info');
+                    addDebugLog(`  ✓ count: ${result.count}`, 'info');
+                    addDebugLog(`  ✓ type: ${result.type}`, 'info');
+                    
+                    if (result.success && result.data && Array.isArray(result.data)) {
+                        furnitureData = result.data;
+                        addDebugLog(`✅ 第 ${i + 1} 次嘗試成功載入 ${furnitureData.length} 筆資料`, 'success');
+                        
+                        if (furnitureData.length > 0) {
+                            addDebugLog(`📝 第一筆: ${furnitureData[0].家具編號} - ${furnitureData[0].家具名稱}`, 'info');
+                            if (furnitureData.length > 1) {
+                                const lastItem = furnitureData[furnitureData.length - 1];
+                                addDebugLog(`📝 最後一筆: ${lastItem.家具編號} - ${lastItem.家具名稱}`, 'info');
+                            }
+                        }
+                        
+                        filteredData = [...furnitureData];
+                        renderFurnitureList(filteredData);
+                        updateFilterOptions();
+                        addDebugLog('✅ 頁面渲染完成', 'success');
+                        
+                        // 移除測試資料提示
+                        const testNotice = document.querySelector('.test-mode-notice');
+                        if (testNotice) testNotice.remove();
+                        
+                        return; // 成功載入，結束函數
+                        
+                    } else {
+                        addDebugLog(`❌ 第 ${i + 1} 次嘗試 - API 回應格式錯誤`, 'warning');
+                        continue;
+                    }
+                    
+                } catch (error) {
+                    addDebugLog(`❌ 第 ${i + 1} 次嘗試失敗: ${error.message}`, 'warning');
+                    
+                    if (i < attempts.length - 1) {
+                        addDebugLog(`🔄 準備嘗試第 ${i + 2} 種方法...`, 'info');
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        continue;
+                    }
                 }
-                
-                // 渲染頁面
-                addDebugLog('🔄 準備渲染頁面...', 'info');
-                filteredData = [...furnitureData];
-                renderFurnitureList(filteredData);
-                updateFilterOptions();
-                addDebugLog('✅ 頁面渲染完成', 'success');
-                
-                // 🎉 成功完成，移除測試資料提示
-                const testNotice = document.querySelector('.test-mode-notice');
-                if (testNotice) {
-                    testNotice.remove();
-                }
-                
-                return; // 成功載入，結束函數
-                
+            }
+            
+            // 所有嘗試都失敗
+            addDebugLog('❌ 所有載入嘗試都失敗', 'error');
+            addDebugLog('🔄 載入測試資料作為備用...', 'warning');
+            
+            if (dataType === '公益單位') {
+                loadCharityTestData();
             } else {
-                addDebugLog(`❌ 第 ${i + 1} 次嘗試 - API 回應格式錯誤`, 'warning');
-                addDebugLog(`回應內容: ${JSON.stringify(result)}`, 'warning');
-                continue; // 嘗試下一種方法
+                loadTestData();
             }
             
-        } catch (error) {
-            addDebugLog(`❌ 第 ${i + 1} 次嘗試失敗: ${error.message}`, 'warning');
-            
-            if (error.name === 'AbortError') {
-                addDebugLog(`⏰ 第 ${i + 1} 次嘗試超時`, 'warning');
-            } else if (error.message.includes('Failed to fetch')) {
-                addDebugLog(`🌐 第 ${i + 1} 次嘗試網路連線失敗`, 'warning');
-            }
-            
-            // 如果不是最後一次嘗試，繼續下一種方法
-            if (i < attempts.length - 1) {
-                addDebugLog(`🔄 準備嘗試第 ${i + 2} 種方法...`, 'info');
-                await new Promise(resolve => setTimeout(resolve, 1000)); // 等待1秒再試
-                continue;
-            }
+            // 顯示載入失敗提示
+            setTimeout(() => {
+                const container = document.getElementById('furnitureList');
+                if (container && !container.querySelector('.test-mode-notice')) {
+                    container.insertAdjacentHTML('afterbegin', `
+                        <div class="test-mode-notice" style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; margin-bottom: 20px; border-radius: 8px; text-align: center;">
+                            ⚠️ API 載入失敗，目前顯示測試資料<br>
+                            <small>資料類型：${dataType}</small>
+                        </div>
+                    `);
+                }
+            }, 100);
         }
-    }
-    
-    // 🚨 所有嘗試都失敗
-    addDebugLog('❌ 所有載入嘗試都失敗', 'error');
-    addDebugLog('🔄 載入測試資料作為備用...', 'warning');
-    
-    // 根據資料類型載入不同的測試資料
-    if (dataType === '公益單位') {
-        loadCharityTestData();
-    } else {
-        loadTestData();
-    }
-    
-    // 顯示載入失敗的提示
-    setTimeout(() => {
-        const container = document.getElementById('furnitureList');
-        if (container && !container.querySelector('.test-mode-notice')) {
-            container.insertAdjacentHTML('afterbegin', `
-                <div class="test-mode-notice" style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; margin-bottom: 20px; border-radius: 8px; text-align: center;">
-                    ⚠️ API 載入失敗，目前顯示測試資料<br>
-                    <small>資料類型：${dataType}</small><br>
-                    <small>所有連線嘗試都失敗，請檢查網路連線或稍後再試</small>
-                </div>
-            `);
-        }
-    }, 100);
-}
 
-// 🔧 公益單位測試資料
-function loadCharityTestData() {
-    addDebugLog('📋 載入公益單位測試資料...', 'warning');
-    
-    furnitureData = [
-        {
-            "家具編號": "T001",
-            "家具名稱": "測試實木書桌 (公益)",
-            "種類": "書桌",
-            "所在地縣市": "台北市",
-            "實際地址": "台北市大安區忠孝東路四段100號",
-            "購買年分": "2020",
-            "新舊程度": "八成新",
-            "家具材質": "實木",
-            "家具重量": "25公斤",
-            "第一領取時間": "2025-06-01",
-            "第二領取時間": "2025-06-30",
-            "轉移到倉庫": "",
-            "倉庫地址": "",
-            "費用": "3500元",
-            "上傳人姓名": "測試公益單位",
-            "連絡電話": "02-1234-5678",
-            "家具圖片1": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400"
-        },
-        {
-            "家具編號": "T002",
-            "家具名稱": "測試三人座布沙發 (公益)",
-            "種類": "沙發",
-            "所在地縣市": "新北市",
-            "實際地址": "新北市板橋區中山路二段50號",
-            "購買年分": "2019",
-            "新舊程度": "七成新",
-            "家具材質": "布料+實木框架",
-            "家具重量": "45公斤",
-            "第一領取時間": "2025-05-15",
-            "第二領取時間": "2025-06-25",
-            "轉移到倉庫": "是",
-            "倉庫地址": "新北市板橋區倉庫路123號",
-            "費用": "",
-            "上傳人姓名": "測試公益單位",
-            "連絡電話": "02-1234-5678",
-            "家具圖片1": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400"
-        }
-    ];
-    
-    addDebugLog(`📋 公益單位測試資料載入完成，共 ${furnitureData.length} 筆`, 'success');
-    
-    filteredData = [...furnitureData];
-    renderFurnitureList(filteredData);
-    updateFilterOptions();
-}
-
-        // 本地端測試用的模擬資料
+        // 一般測試資料
         function loadTestData() {
             addDebugLog('📋 載入測試資料...', 'warning');
             furnitureData = [
@@ -933,66 +888,51 @@ function loadCharityTestData() {
                     "轉移到倉庫": "",
                     "倉庫地址": "",
                     "費用": "3500元",
-                    "家具圖片1": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400",
-                    "家具圖片2": "https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=400",
-                    "家具圖片3": "",
-                    "家具圖片4": ""
-                },
-                {
-                    "家具編號": "T002",
-                    "家具名稱": "測試三人座布沙發",
-                    "種類": "沙發",
-                    "所在地縣市": "新北市",
-                    "實際地址": "新北市板橋區中山路二段50號",
-                    "購買年分": "2019",
-                    "新舊程度": "七成新",
-                    "家具材質": "布料+實木框架",
-                    "家具重量": "45公斤",
-                    "第一領取時間": "2025-05-15",
-                    "第二領取時間": "2025-06-25",
-                    "轉移到倉庫": "是",
-                    "倉庫地址": "新北市板橋區倉庫路123號",
-                    "費用": "",
-                    "家具圖片1": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400",
-                    "家具圖片2": "",
-                    "家具圖片3": "",
-                    "家具圖片4": ""
-                },
-                {
-                    "家具編號": "T003",
-                    "家具名稱": "測試辦公椅",
-                    "種類": "椅子",
-                    "所在地縣市": "台中市",
-                    "實際地址": "台中市西屯區台灣大道三段99號",
-                    "購買年分": "2021",
-                    "新舊程度": "九成新",
-                    "家具材質": "皮革+金屬",
-                    "家具重量": "15公斤",
-                    "第一領取時間": "2025-06-10",
-                    "第二領取時間": "2025-07-10",
-                    "轉移到倉庫": "",
-                    "倉庫地址": "",
-                    "費用": "2000元",
-                    "家具圖片1": "https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=400",
-                    "家具圖片2": "",
-                    "家具圖片3": "",
-                    "家具圖片4": ""
+                    "家具圖片1": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400"
                 }
             ];
             
             addDebugLog(`📋 測試資料載入完成，共 ${furnitureData.length} 筆`, 'success');
-            
             filteredData = [...furnitureData];
             renderFurnitureList(filteredData);
             updateFilterOptions();
             
-            // 顯示測試模式提示
             document.getElementById('furnitureList').insertAdjacentHTML('afterbegin', `
                 <div class="test-mode-notice" style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; margin-bottom: 20px; border-radius: 8px; text-align: center;">
                     📋 目前顯示測試資料<br>
-                    <small>${location.protocol === 'file:' ? '本地端測試模式' : 'API載入失敗，使用備用資料'}</small>
+                    <small>API載入失敗，使用備用資料</small>
                 </div>
             `);
+        }
+
+        // 公益單位測試資料
+        function loadCharityTestData() {
+            addDebugLog('📋 載入公益單位測試資料...', 'warning');
+            
+            furnitureData = [
+                {
+                    "家具編號": "T001",
+                    "家具名稱": "測試實木書桌 (公益)",
+                    "種類": "書桌",
+                    "所在地縣市": "台北市",
+                    "實際地址": "台北市大安區忠孝東路四段100號",
+                    "購買年分": "2020",
+                    "新舊程度": "八成新",
+                    "家具材質": "實木",
+                    "家具重量": "25公斤",
+                    "第一領取時間": "2025-06-01",
+                    "第二領取時間": "2025-06-30",
+                    "費用": "3500元",
+                    "上傳人姓名": "測試公益單位",
+                    "連絡電話": "02-1234-5678",
+                    "家具圖片1": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400"
+                }
+            ];
+            
+            addDebugLog(`📋 公益單位測試資料載入完成，共 ${furnitureData.length} 筆`, 'success');
+            filteredData = [...furnitureData];
+            renderFurnitureList(filteredData);
+            updateFilterOptions();
         }
 
         // 更新資料功能
@@ -1004,18 +944,15 @@ function loadCharityTestData() {
             addDebugLog('🔄 開始更新資料...', 'info');
             
             try {
-                // 更新按鈕狀態
                 updateBtn.disabled = true;
                 updateBtn.innerHTML = '更新中...';
                 
                 addDebugLog('📡 呼叫更新 API...', 'info');
                 
-                // 加入時間戳防止快取
                 const timestamp = new Date().getTime();
                 const updateUrl = `${getUpdateApiUrl()}?action=update&_t=${timestamp}`;
                 addDebugLog(`📡 更新API網址: ${updateUrl}`, 'info');
                 
-                // 呼叫Apps Script觸發更新
                 const response = await fetch(updateUrl, {
                     method: 'GET',
                     headers: {
@@ -1037,17 +974,15 @@ function loadCharityTestData() {
                 addDebugLog(`📋 更新結果: ${JSON.stringify(result)}`, 'info');
                 
                 if (result.success) {
-                    // 更新成功，重新載入資料
                     updateBtn.innerHTML = '更新成功';
                     addDebugLog('✅ 資料更新成功', 'success');
                     
                     setTimeout(() => {
                         updateBtn.innerHTML = '重新載入中';
                         addDebugLog('🔄 重新載入資料...', 'info');
-                        loadFurnitureData(); // 重新載入資料
+                        loadFurnitureData();
                     }, 1000);
                     
-                    // 顯示最後更新時間
                     const now = new Date();
                     const timeString = now.toLocaleString('zh-TW', {
                         month: '2-digit',
@@ -1058,7 +993,6 @@ function loadCharityTestData() {
                     lastUpdate.textContent = `最後更新：${timeString}`;
                     lastUpdate.style.display = 'inline';
                     
-                    // 恢復按鈕
                     setTimeout(() => {
                         updateBtn.disabled = false;
                         updateBtn.innerHTML = originalText;
@@ -1071,11 +1005,8 @@ function loadCharityTestData() {
             } catch (error) {
                 addDebugLog(`❌ 更新失敗: ${error.message}`, 'error');
                 updateBtn.innerHTML = '更新失敗';
-                
-                // 顯示錯誤訊息
                 showNotification('更新失敗，請稍後再試', 'error');
                 
-                // 恢復按鈕
                 setTimeout(() => {
                     updateBtn.disabled = false;
                     updateBtn.innerHTML = originalText;
@@ -1083,7 +1014,7 @@ function loadCharityTestData() {
             }
         }
 
-        // 取得顯示地址（判斷是否為倉庫地址）
+        // 取得顯示地址
         function getDisplayAddress(item) {
             if (item.轉移到倉庫 && item.倉庫地址 && item.倉庫地址.trim() !== '') {
                 return `${item.倉庫地址} (倉庫)`;
@@ -1092,7 +1023,7 @@ function loadCharityTestData() {
             }
         }
 
-        // 取得顯示費用（處理空值）
+        // 取得顯示費用
         function getDisplayPrice(item) {
             if (item.費用 && item.費用.trim() !== '') {
                 return item.費用;
@@ -1105,7 +1036,6 @@ function loadCharityTestData() {
         function updateFilterOptions() {
             addDebugLog('🔄 更新篩選器選項...', 'info');
             
-            // 更新種類選項
             const categories = [...new Set(furnitureData.map(item => item.種類))].filter(Boolean);
             const categorySelect = document.getElementById('categoryFilter');
             const currentCategory = categorySelect.value;
@@ -1118,7 +1048,6 @@ function loadCharityTestData() {
                 categorySelect.appendChild(option);
             });
 
-            // 更新地區選項
             const locations = [...new Set(furnitureData.map(item => item.所在地縣市))].filter(Boolean);
             const locationSelect = document.getElementById('locationFilter');
             const currentLocation = locationSelect.value;
@@ -1131,7 +1060,6 @@ function loadCharityTestData() {
                 locationSelect.appendChild(option);
             });
 
-            // 更新新舊程度選項
             const conditions = [...new Set(furnitureData.map(item => item.新舊程度))].filter(Boolean);
             const conditionSelect = document.getElementById('conditionFilter');
             const currentCondition = conditionSelect.value;
@@ -1149,17 +1077,14 @@ function loadCharityTestData() {
 
         // 顯示通知訊息
         function showNotification(message, type = 'info') {
-            // 移除現有通知
             const existingNotification = document.querySelector('.notification');
             if (existingNotification) {
                 existingNotification.remove();
             }
 
-            // 建立新通知
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
             
-            // 設定圖示
             let icon = '';
             switch(type) {
                 case 'success': icon = '✓'; break;
@@ -1175,11 +1100,8 @@ function loadCharityTestData() {
             `;
 
             document.body.appendChild(notification);
-
-            // 顯示動畫
             setTimeout(() => notification.classList.add('show'), 100);
 
-            // 自動消失（除了loading狀態）
             if (type !== 'loading') {
                 setTimeout(() => {
                     if (notification.parentElement) {
@@ -1244,7 +1166,6 @@ function loadCharityTestData() {
 
             modalTitle.textContent = item.家具名稱;
 
-            // 收集有效的圖片
             const images = [item.家具圖片1, item.家具圖片2, item.家具圖片3, item.家具圖片4]
                 .filter(img => img && img.trim() !== '');
 
@@ -1311,7 +1232,6 @@ function loadCharityTestData() {
                 });
             } else {
                 addDebugLog('⚠️ LIFF 未登入，使用剪貼簿方式', 'warning');
-                // 如果未登入，顯示訊息讓用戶複製
                 navigator.clipboard.writeText(message).then(() => {
                     showNotification('預約訊息已複製到剪貼簿，請到LINE貼上發送', 'info');
                 }).catch(() => {
@@ -1324,7 +1244,6 @@ function loadCharityTestData() {
         async function reserveFurnitureDesktop(furnitureId) {
             addDebugLog(`💻 電腦版預約: ${furnitureId}`, 'info');
             
-            // 顯示處理中狀態
             showNotification('處理中，請稍候...', 'loading');
             
             try {
@@ -1351,7 +1270,6 @@ function loadCharityTestData() {
                 if (response.ok) {
                     const result = await response.text();
                     addDebugLog(`📋 Webhook 結果: ${result}`, 'success');
-                    // 顯示Make.com回傳的訊息
                     showNotification(result || '預約成功！我們會盡快與您聯絡', 'success');
                     document.getElementById('detailModal').style.display = 'none';
                 } else {
@@ -1369,8 +1287,6 @@ function loadCharityTestData() {
             const categoryFilter = document.getElementById('categoryFilter').value;
             const locationFilter = document.getElementById('locationFilter').value;
             const conditionFilter = document.getElementById('conditionFilter').value;
-
-            const originalCount = filteredData.length;
 
             filteredData = furnitureData.filter(item => {
                 const matchSearch = !searchTerm || 
@@ -1407,9 +1323,13 @@ function loadCharityTestData() {
             }
         });
 
-        // 初始載入
+        // 🔒 初始載入（含除錯模式初始化）
         window.addEventListener('DOMContentLoaded', function() {
             addDebugLog('🎬 頁面載入完成，開始初始化', 'info');
+            
+            // 初始化除錯模式
+            initializeDebugMode();
+            
             loadFurnitureData();
         });
     </script>
