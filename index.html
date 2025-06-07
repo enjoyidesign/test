@@ -612,11 +612,15 @@
         </div>
     </div>
 
-    <script>
-        // 設定常數
+   <script>
+        // 🔧 統一的 API URL 設定 - 只需要改這一個地方
+        const API_CONFIG = {
+            BASE_URL: 'https://script.google.com/macros/s/AKfycbxspmt1FDOeYdjRJmMznBRIuvWQj8XR25jaMZW2YMyMrxCr_aFSeYG3lHV4D3DnOmrk/exec'
+        };
+
         // 取得更新用的API網址
         function getUpdateApiUrl() {
-            return 'https://script.google.com/macros/s/AKfycbxspmt1FDOeYdjRJmMznBRIuvWQj8XR25jaMZW2YMyMrxCr_aFSeYG3lHV4D3DnOmrk/exec';
+            return API_CONFIG.BASE_URL;
         }
         
         // 取得URL參數
@@ -650,16 +654,19 @@
             panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
         }
 
-        // 取得API網址
+        // 🔧 修正版：getApiUrl 函數
         function getApiUrl(token) {
-            // 基礎Apps Script URL
-            const baseUrl = 'https://script.google.com/macros/s/AKfycbxspmt1FDOeYdjRJmMznBRIuvWQj8XR25jaMZW2YMyMrxCr_aFSeYG3lHV4D3DnOmrk/exec';
+            // 使用統一的設定
+            const baseUrl = API_CONFIG.BASE_URL;
+            
+            // 加入時間戳防止快取
+            const timestamp = new Date().getTime();
             
             // 根據token決定type
             if (token === 'Y2hhcml0eQ==') { // 'charity' in base64
-                return `${baseUrl}?action=getData&type=charity`;
+                return `${baseUrl}?action=getData&type=charity&_t=${timestamp}`;
             } else { // 一般民眾 (token === 'cHVibGlj' 或其他)
-                return `${baseUrl}?action=getData&type=public`;
+                return `${baseUrl}?action=getData&type=public&_t=${timestamp}`;
             }
         }
 
@@ -678,7 +685,7 @@
             });
         });
 
-        // 🔍 除錯版本：載入家具資料
+        // 🔧 修正版：loadFurnitureData 函數 - 使用統一設定
         async function loadFurnitureData() {
             addDebugLog('🚀 開始載入家具資料', 'info');
             addDebugLog(`🎯 當前 token: ${token}`, 'info');
@@ -698,60 +705,91 @@
                 const dataType = token === 'Y2hhcml0eQ==' ? '公益單位' : '一般民眾';
                 addDebugLog(`👤 資料類型: ${dataType}`, 'info');
                 
-                addDebugLog('🔄 發送 API 請求...', 'info');
-                const response = await fetch(apiUrl);
+                addDebugLog('🔄 發送 API 請求 (防快取)...', 'info');
+                
+                // 🚨 加入強制防快取的 headers
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    },
+                    cache: 'no-store'
+                });
                 
                 addDebugLog(`📊 Response status: ${response.status}`, response.ok ? 'success' : 'error');
-                addDebugLog(`📊 Response ok: ${response.ok}`, 'info');
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
-                addDebugLog('🔄 解析 JSON 回應...', 'info');
-                const result = await response.json();
+                addDebugLog('🔄 解析回應...', 'info');
+                const responseText = await response.text();
+                addDebugLog(`📏 原始回應長度: ${responseText.length} 字元`, 'info');
+                
+                // 🔍 檢查回應內容
+                addDebugLog(`📝 回應前200字元: ${responseText.substring(0, 200)}...`, 'info');
+                
+                // 檢查是否為 HTML 錯誤頁面
+                if (responseText.includes('<html') || responseText.includes('<div')) {
+                    addDebugLog('❌ 收到 HTML 回應，不是 JSON', 'error');
+                    throw new Error('API 回傳 HTML 而非 JSON，請檢查 Web App URL 是否正確');
+                }
+                
+                const result = JSON.parse(responseText);
                 
                 addDebugLog(`📋 API 回應結構檢查:`, 'info');
                 addDebugLog(`  ✓ result.success: ${result.success}`, 'info');
                 addDebugLog(`  ✓ result.data 存在: ${!!result.data}`, 'info');
                 addDebugLog(`  ✓ result.data 類型: ${typeof result.data}`, 'info');
                 addDebugLog(`  ✓ result.data 是陣列: ${Array.isArray(result.data)}`, 'info');
+                addDebugLog(`  ✓ result.count: ${result.count}`, 'info');
                 
-                if (result.data) {
+                if (result.data && Array.isArray(result.data)) {
                     addDebugLog(`  ✓ result.data 長度: ${result.data.length}`, result.data.length > 0 ? 'success' : 'warning');
                     
                     if (result.data.length > 0) {
-                        addDebugLog(`📝 第一筆資料預覽:`, 'info');
+                        addDebugLog(`📝 第一筆資料:`, 'info');
                         addDebugLog(`  家具編號: ${result.data[0].家具編號 || '無'}`, 'info');
                         addDebugLog(`  家具名稱: ${result.data[0].家具名稱 || '無'}`, 'info');
-                        addDebugLog(`  種類: ${result.data[0].種類 || '無'}`, 'info');
                         
                         if (result.data.length > 1) {
-                            addDebugLog(`📝 最後一筆資料預覽:`, 'info');
+                            addDebugLog(`📝 最後一筆資料:`, 'info');
                             const lastItem = result.data[result.data.length - 1];
                             addDebugLog(`  家具編號: ${lastItem.家具編號 || '無'}`, 'info');
                             addDebugLog(`  家具名稱: ${lastItem.家具名稱 || '無'}`, 'info');
                         }
+                        
+                        // 🔍 顯示所有編號
+                        const allIds = result.data.map(item => item.家具編號 || '無').join(', ');
+                        addDebugLog(`📋 所有家具編號: ${allIds}`, 'info');
+                        
+                        // 🎯 關鍵檢查：如果只有1筆但預期有更多
+                        if (result.data.length === 1 && dataType === '一般民眾') {
+                            addDebugLog('⚠️ 警告：一般民眾只有1筆資料！', 'warning');
+                            addDebugLog(`   資料詳情: 編號 ${result.data[0].家具編號} - ${result.data[0].家具名稱}`, 'warning');
+                            addDebugLog('🔍 可能原因：', 'warning');
+                            addDebugLog('   1. 大部分家具的第一領取時間還未到', 'warning');
+                            addDebugLog('   2. 篩選邏輯過於嚴格', 'warning');
+                            addDebugLog('   3. Google Sheets 中的日期格式問題', 'warning');
+                            
+                            // 顯示第一筆資料的完整資訊以便診斷
+                            addDebugLog(`📊 唯一資料的完整資訊:`, 'info');
+                            Object.keys(result.data[0]).forEach(key => {
+                                addDebugLog(`   ${key}: ${result.data[0][key]}`, 'info');
+                            });
+                        }
                     }
                 }
                 
-                if (result.success && result.data) {
-                    if (Array.isArray(result.data)) {
-                        furnitureData = result.data;
-                        addDebugLog(`✅ 成功載入 ${furnitureData.length} 筆資料`, 'success');
-                        
-                        if (furnitureData.length === 0) {
-                            addDebugLog('⚠️ 警告：載入的資料陣列為空', 'warning');
-                        }
-                        
-                    } else {
-                        addDebugLog(`❌ 錯誤：API 回傳的 data 不是陣列`, 'error');
-                        addDebugLog(`實際類型: ${typeof result.data}`, 'error');
-                        addDebugLog(`實際內容: ${JSON.stringify(result.data)}`, 'error');
-                        throw new Error('API回傳的資料格式錯誤，應該是陣列');
-                    }
+                if (result.success && result.data && Array.isArray(result.data)) {
+                    // 🚨 關鍵：直接使用 API 回傳的資料
+                    furnitureData = result.data;
+                    addDebugLog(`✅ 成功載入 ${furnitureData.length} 筆資料`, 'success');
+                    
                 } else {
-                    addDebugLog('❌ API 回應失敗或資料格式錯誤', 'error');
+                    addDebugLog('❌ API 回應格式錯誤', 'error');
                     addDebugLog(`完整回應: ${JSON.stringify(result)}`, 'error');
                     throw new Error(result.message || '無法取得資料');
                 }
@@ -881,12 +919,22 @@
                 updateBtn.innerHTML = '更新中...';
                 
                 addDebugLog('📡 呼叫更新 API...', 'info');
+                
+                // 加入時間戳防止快取
+                const timestamp = new Date().getTime();
+                const updateUrl = `${getUpdateApiUrl()}?action=update&_t=${timestamp}`;
+                addDebugLog(`📡 更新API網址: ${updateUrl}`, 'info');
+                
                 // 呼叫Apps Script觸發更新
-                const response = await fetch(getUpdateApiUrl() + '?action=update', {
+                const response = await fetch(updateUrl, {
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json',
-                    }
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    },
+                    cache: 'no-store'
                 });
                 
                 addDebugLog(`📊 更新 API 回應: ${response.status}`, response.ok ? 'success' : 'error');
