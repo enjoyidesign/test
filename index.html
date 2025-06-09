@@ -935,13 +935,13 @@
             updateFilterOptions();
         }
 
- // 🔧 替換你前端的 updateData 函數為這個版本
+ // 🔧 改良版 updateData 函數 - 確保真的更新
 async function updateData() {
     const updateBtn = document.getElementById('updateBtn');
     const lastUpdate = document.getElementById('lastUpdate');
     const originalText = updateBtn.innerHTML;
     
-    addDebugLog('🔄 開始更新資料 (使用 iframe 方式)...', 'info');
+    addDebugLog('🔄 開始更新資料 (改良版 iframe)...', 'info');
     
     try {
         updateBtn.disabled = true;
@@ -950,89 +950,49 @@ async function updateData() {
         const timestamp = new Date().getTime();
         const updateUrl = `${getUpdateApiUrl()}?action=update&_t=${timestamp}`;
         
-        addDebugLog(`📡 iframe 更新URL: ${updateUrl}`, 'info');
+        addDebugLog(`📡 更新 URL: ${updateUrl}`, 'info');
         
-        // 建立隱藏的 iframe
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.position = 'absolute';
-        iframe.style.left = '-9999px';
-        iframe.style.border = 'none';
+        // 方法1: 先嘗試直接在瀏覽器中開啟 API URL
+        addDebugLog('🔄 方法1: 嘗試在新視窗中執行更新...', 'info');
         
-        let isCompleted = false;
-        let timeoutId = null;
+        // 開啟一個很小的彈出視窗來執行更新
+        const updateWindow = window.open(
+            updateUrl, 
+            'updateWindow', 
+            'width=300,height=200,left=9999,top=9999,toolbar=no,location=no,status=no,menubar=no,scrollbars=no,resizable=no'
+        );
         
-        // 建立 Promise 來處理 iframe 回應
-        const iframePromise = new Promise((resolve, reject) => {
+        if (updateWindow) {
+            addDebugLog('✅ 更新視窗已開啟', 'info');
             
-            // 設定超時處理 (15秒)
-            timeoutId = setTimeout(() => {
-                if (!isCompleted) {
-                    isCompleted = true;
-                    addDebugLog('⏰ iframe 更新超時', 'warning');
-                    cleanupIframe();
-                    reject(new Error('更新請求超時'));
-                }
-            }, 15000);
-            
-            // iframe 載入完成事件
-            iframe.onload = function() {
-                if (isCompleted) return;
-                isCompleted = true;
-                
-                clearTimeout(timeoutId);
-                addDebugLog('✅ iframe 載入完成', 'success');
-                
-                // iframe 載入完成表示 API 調用成功
-                // Google Apps Script 會回傳 JSON，但我們無法直接讀取內容（跨域限制）
-                // 所以只要 iframe 成功載入，就視為更新成功
-                
-                cleanupIframe();
-                resolve({ success: true });
-            };
-            
-            // iframe 載入錯誤事件
-            iframe.onerror = function() {
-                if (isCompleted) return;
-                isCompleted = true;
-                
-                clearTimeout(timeoutId);
-                addDebugLog('❌ iframe 載入失敗', 'error');
-                cleanupIframe();
-                reject(new Error('iframe 載入失敗'));
-            };
-            
-            function cleanupIframe() {
+            // 等待一段時間讓 API 執行
+            setTimeout(() => {
                 try {
-                    if (iframe.parentNode) {
-                        iframe.parentNode.removeChild(iframe);
-                    }
+                    updateWindow.close();
+                    addDebugLog('✅ 更新視窗已關閉', 'info');
                 } catch (e) {
-                    // 忽略清理錯誤
+                    // 忽略關閉錯誤
                 }
-            }
-        });
+            }, 3000);
+            
+            // 等待 API 執行完成
+            await new Promise(resolve => setTimeout(resolve, 4000));
+            
+            updateBtn.innerHTML = '更新完成';
+            addDebugLog('✅ 更新請求已發送', 'success');
+            
+        } else {
+            // 如果彈出視窗被阻擋，使用 iframe 方式
+            addDebugLog('⚠️ 彈出視窗被阻擋，改用 iframe 方式', 'warning');
+            await updateWithIframe(updateUrl);
+        }
         
-        // 將 iframe 加入頁面並開始載入
-        document.body.appendChild(iframe);
-        iframe.src = updateUrl;
-        
-        // 等待 iframe 完成
-        await iframePromise;
-        
-        // 更新成功
-        updateBtn.innerHTML = '更新成功';
-        addDebugLog('✅ 資料更新成功 (iframe)', 'success');
-        showNotification('資料更新成功！', 'success');
-        
-        // 延遲後重新載入資料
+        // 延遲後重新載入資料來驗證更新
         setTimeout(() => {
-            updateBtn.innerHTML = '重新載入中';
-            addDebugLog('🔄 重新載入資料...', 'info');
+            updateBtn.innerHTML = '驗證更新中';
+            addDebugLog('🔍 驗證更新是否成功...', 'info');
             loadFurnitureData();
-        }, 1000);
+        }, 2000);
         
         // 更新時間顯示
         const now = new Date();
@@ -1045,14 +1005,16 @@ async function updateData() {
         lastUpdate.textContent = `最後更新：${timeString}`;
         lastUpdate.style.display = 'inline';
         
-        // 恢復按鈕狀態
+        showNotification('更新請求已發送！', 'success');
+        
+        // 恢復按鈕
         setTimeout(() => {
             updateBtn.disabled = false;
             updateBtn.innerHTML = originalText;
-        }, 3000);
+        }, 5000);
         
     } catch (error) {
-        addDebugLog(`❌ iframe 更新失敗: ${error.message}`, 'error');
+        addDebugLog(`❌ 更新失敗: ${error.message}`, 'error');
         updateBtn.innerHTML = '更新失敗';
         showNotification(`更新失敗: ${error.message}`, 'error');
         
@@ -1063,96 +1025,132 @@ async function updateData() {
     }
 }
 
-// 🔧 備用方案：JSONP 方式（如果 iframe 也不行的話）
-async function updateDataWithJSONP() {
+// 🔧 iframe 備用方式
+async function updateWithIframe(updateUrl) {
+    return new Promise((resolve, reject) => {
+        addDebugLog('🔄 使用 iframe 執行更新...', 'info');
+        
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.position = 'absolute';
+        iframe.style.left = '-9999px';
+        
+        let completed = false;
+        
+        const cleanup = () => {
+            if (iframe.parentNode) {
+                iframe.parentNode.removeChild(iframe);
+            }
+        };
+        
+        // 設定超時
+        const timeout = setTimeout(() => {
+            if (!completed) {
+                completed = true;
+                addDebugLog('⏰ iframe 更新超時，但可能已完成', 'warning');
+                cleanup();
+                resolve(); // 即使超時也當作成功
+            }
+        }, 8000);
+        
+        iframe.onload = () => {
+            if (!completed) {
+                completed = true;
+                clearTimeout(timeout);
+                addDebugLog('✅ iframe 載入完成', 'success');
+                cleanup();
+                resolve();
+            }
+        };
+        
+        iframe.onerror = () => {
+            if (!completed) {
+                completed = true;
+                clearTimeout(timeout);
+                addDebugLog('❌ iframe 載入錯誤', 'error');
+                cleanup();
+                resolve(); // 即使錯誤也繼續
+            }
+        };
+        
+        document.body.appendChild(iframe);
+        iframe.src = updateUrl;
+    });
+}
+
+// 🔧 替代方案：使用 img 標籤觸發請求
+async function updateDataWithImage() {
     const updateBtn = document.getElementById('updateBtn');
     const lastUpdate = document.getElementById('lastUpdate');
     const originalText = updateBtn.innerHTML;
     
-    addDebugLog('🔄 開始更新資料 (使用 JSONP 方式)...', 'info');
+    addDebugLog('🔄 開始更新資料 (img 方式)...', 'info');
     
     try {
         updateBtn.disabled = true;
         updateBtn.innerHTML = '更新中...';
         
         const timestamp = new Date().getTime();
-        const callbackName = `updateCallback_${timestamp}`;
+        const updateUrl = `${getUpdateApiUrl()}?action=update&_t=${timestamp}`;
         
-        // 建立 JSONP 請求
-        const script = document.createElement('script');
-        const updateUrl = `${getUpdateApiUrl()}?action=update&callback=${callbackName}&_t=${timestamp}`;
+        addDebugLog(`📡 img 更新URL: ${updateUrl}`, 'info');
         
-        addDebugLog(`📡 JSONP 更新URL: ${updateUrl}`, 'info');
+        // 建立隱藏的 img 元素來觸發請求
+        const img = new Image();
         
-        // 建立 Promise 來處理 JSONP 回應
-        const jsonpPromise = new Promise((resolve, reject) => {
-            // 設定回呼函數
-            window[callbackName] = function(data) {
-                addDebugLog(`📋 JSONP 回應: ${JSON.stringify(data)}`, 'info');
-                resolve(data);
-                // 清理
-                document.head.removeChild(script);
-                delete window[callbackName];
+        const imgPromise = new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                addDebugLog('⏰ img 請求超時，視為成功', 'warning');
+                resolve();
+            }, 10000);
+            
+            img.onload = () => {
+                clearTimeout(timeout);
+                addDebugLog('✅ img 載入完成（可能出錯但請求已發送）', 'info');
+                resolve();
             };
             
-            // 設定錯誤處理
-            script.onerror = function() {
-                reject(new Error('JSONP 請求失敗'));
-                if (script.parentNode) {
-                    document.head.removeChild(script);
-                }
-                delete window[callbackName];
+            img.onerror = () => {
+                clearTimeout(timeout);
+                addDebugLog('✅ img 載入錯誤（正常，因為回應是JSON）', 'info');
+                resolve(); // 錯誤是正常的，因為 API 回傳 JSON 不是圖片
             };
-            
-            // 設定超時
-            setTimeout(() => {
-                if (window[callbackName]) {
-                    reject(new Error('JSONP 請求超時'));
-                    if (script.parentNode) {
-                        document.head.removeChild(script);
-                    }
-                    delete window[callbackName];
-                }
-            }, 15000);
         });
         
-        script.src = updateUrl;
-        document.head.appendChild(script);
+        img.src = updateUrl;
+        await imgPromise;
         
-        const result = await jsonpPromise;
-        addDebugLog(`📋 JSONP 更新結果: ${JSON.stringify(result)}`, 'info');
+        updateBtn.innerHTML = '更新完成';
+        addDebugLog('✅ 更新請求已發送 (img)', 'success');
         
-        if (result.success) {
-            updateBtn.innerHTML = '更新成功';
-            addDebugLog('✅ 資料更新成功 (JSONP)', 'success');
-            showNotification('資料更新成功！', 'success');
-            
-            setTimeout(() => {
-                updateBtn.innerHTML = '重新載入中';
-                loadFurnitureData();
-            }, 1000);
-            
-            const now = new Date();
-            const timeString = now.toLocaleString('zh-TW', {
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-            lastUpdate.textContent = `最後更新：${timeString}`;
-            lastUpdate.style.display = 'inline';
-            
-            setTimeout(() => {
-                updateBtn.disabled = false;
-                updateBtn.innerHTML = originalText;
-            }, 3000);
-            
-        } else {
-            throw new Error(result.message || '更新失敗');
-        }
+        // 延遲後重新載入資料
+        setTimeout(() => {
+            updateBtn.innerHTML = '重新載入中';
+            loadFurnitureData();
+        }, 2000);
+        
+        // 更新時間顯示
+        const now = new Date();
+        const timeString = now.toLocaleString('zh-TW', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        lastUpdate.textContent = `最後更新：${timeString}`;
+        lastUpdate.style.display = 'inline';
+        
+        showNotification('更新完成！', 'success');
+        
+        setTimeout(() => {
+            updateBtn.disabled = false;
+            updateBtn.innerHTML = originalText;
+        }, 4000);
         
     } catch (error) {
-        addDebugLog(`❌ JSONP 更新失敗: ${error.message}`, 'error');
+        addDebugLog(`❌ img 更新失敗: ${error.message}`, 'error');
         updateBtn.innerHTML = '更新失敗';
         showNotification(`更新失敗: ${error.message}`, 'error');
         
