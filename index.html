@@ -935,84 +935,113 @@
             updateFilterOptions();
         }
 
-        // 更新資料功能
-        async function updateData() {
-            const updateBtn = document.getElementById('updateBtn');
-            const lastUpdate = document.getElementById('lastUpdate');
-            const originalText = updateBtn.innerHTML;
-            
-            addDebugLog('🔄 開始更新資料...', 'info');
-            
-            try {
-                updateBtn.disabled = true;
-                updateBtn.innerHTML = '更新中...';
-                
-                addDebugLog('📡 呼叫更新 API...', 'info');
-                
-                const timestamp = new Date().getTime();
-                const updateUrl = `${getUpdateApiUrl()}?action=update&_t=${timestamp}`;
-                addDebugLog(`📡 更新API網址: ${updateUrl}`, 'info');
-                
-                const response = await fetch(updateUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Cache-Control': 'no-cache, no-store, must-revalidate',
-                        'Pragma': 'no-cache',
-                        'Expires': '0'
-                    },
-                    cache: 'no-store'
-                });
-                
-                addDebugLog(`📊 更新 API 回應: ${response.status}`, response.ok ? 'success' : 'error');
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const result = await response.json();
-                addDebugLog(`📋 更新結果: ${JSON.stringify(result)}`, 'info');
-                
-                if (result.success) {
-                    updateBtn.innerHTML = '更新成功';
-                    addDebugLog('✅ 資料更新成功', 'success');
-                    
-                    setTimeout(() => {
-                        updateBtn.innerHTML = '重新載入中';
-                        addDebugLog('🔄 重新載入資料...', 'info');
-                        loadFurnitureData();
-                    }, 1000);
-                    
-                    const now = new Date();
-                    const timeString = now.toLocaleString('zh-TW', {
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    });
-                    lastUpdate.textContent = `最後更新：${timeString}`;
-                    lastUpdate.style.display = 'inline';
-                    
-                    setTimeout(() => {
-                        updateBtn.disabled = false;
-                        updateBtn.innerHTML = originalText;
-                    }, 3000);
-                    
-                } else {
-                    throw new Error(result.message || '更新失敗');
-                }
-                
-            } catch (error) {
-                addDebugLog(`❌ 更新失敗: ${error.message}`, 'error');
-                updateBtn.innerHTML = '更新失敗';
-                showNotification('更新失敗，請稍後再試', 'error');
-                
-                setTimeout(() => {
-                    updateBtn.disabled = false;
-                    updateBtn.innerHTML = originalText;
-                }, 3000);
-            }
+       // 🔧 修正版更新資料功能
+async function updateData() {
+    const updateBtn = document.getElementById('updateBtn');
+    const lastUpdate = document.getElementById('lastUpdate');
+    const originalText = updateBtn.innerHTML;
+    
+    addDebugLog('🔄 開始更新資料...', 'info');
+    
+    try {
+        updateBtn.disabled = true;
+        updateBtn.innerHTML = '更新中...';
+        
+        addDebugLog('📡 呼叫更新 API...', 'info');
+        
+        const timestamp = new Date().getTime();
+        const updateUrl = `${getUpdateApiUrl()}?action=update&_t=${timestamp}`;
+        addDebugLog(`📡 更新API網址: ${updateUrl}`, 'info');
+        
+        const response = await fetch(updateUrl, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            },
+            cache: 'no-store'
+        });
+        
+        addDebugLog(`📊 更新 API 回應: ${response.status}`, response.ok ? 'success' : 'error');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
+        
+        // 🔧 關鍵修正：先取得文字，再解析 JSON
+        const responseText = await response.text();
+        addDebugLog(`📏 回應內容: ${responseText.substring(0, 200)}...`, 'info');
+        
+        // 檢查是否為HTML（表示有錯誤）
+        if (responseText.includes('<html') || responseText.includes('<!DOCTYPE')) {
+            addDebugLog(`❌ 回應為HTML而非JSON`, 'error');
+            throw new Error('伺服器回傳HTML而非JSON，請檢查部署設定');
+        }
+        
+        // 嘗試解析 JSON
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (parseError) {
+            addDebugLog(`❌ JSON解析失敗: ${parseError.message}`, 'error');
+            addDebugLog(`📋 原始回應: ${responseText}`, 'error');
+            throw new Error(`JSON解析失敗: ${parseError.message}`);
+        }
+        
+        addDebugLog(`📋 更新結果: ${JSON.stringify(result)}`, 'info');
+        
+        if (result.success) {
+            updateBtn.innerHTML = '更新成功';
+            addDebugLog('✅ 資料更新成功', 'success');
+            
+            // 顯示更新統計
+            if (result.publicCount !== undefined && result.charityCount !== undefined) {
+                addDebugLog(`📊 更新統計 - 一般民眾: ${result.publicCount} 筆, 公益單位: ${result.charityCount} 筆`, 'success');
+                showNotification(`更新成功！一般民眾: ${result.publicCount} 筆, 公益單位: ${result.charityCount} 筆`, 'success');
+            } else {
+                showNotification('資料更新成功！', 'success');
+            }
+            
+            setTimeout(() => {
+                updateBtn.innerHTML = '重新載入中';
+                addDebugLog('🔄 重新載入資料...', 'info');
+                loadFurnitureData();
+            }, 1000);
+            
+            const now = new Date();
+            const timeString = now.toLocaleString('zh-TW', {
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            lastUpdate.textContent = `最後更新：${timeString}`;
+            lastUpdate.style.display = 'inline';
+            
+            setTimeout(() => {
+                updateBtn.disabled = false;
+                updateBtn.innerHTML = originalText;
+            }, 3000);
+            
+        } else {
+            const errorMsg = result.message || '更新失敗，未知原因';
+            addDebugLog(`❌ API回傳失敗: ${errorMsg}`, 'error');
+            throw new Error(errorMsg);
+        }
+        
+    } catch (error) {
+        addDebugLog(`❌ 更新失敗: ${error.message}`, 'error');
+        updateBtn.innerHTML = '更新失敗';
+        showNotification(`更新失敗: ${error.message}`, 'error');
+        
+        setTimeout(() => {
+            updateBtn.disabled = false;
+            updateBtn.innerHTML = originalText;
+        }, 3000);
+    }
+}
 
         // 取得顯示地址
         function getDisplayAddress(item) {
