@@ -720,758 +720,117 @@
             });
         });
 
-// 🔧 修正版 loadFurnitureData - 跳過第一次嘗試
-async function loadFurnitureData() {
-    addDebugLog('🚀 開始載入家具資料', 'info');
-    
-    try {
-        const token = getTokenFromUrl();
-        const dataType = token === TOKENS.CHARITY ? 'charity' : 'public';
-        const displayType = token === TOKENS.CHARITY ? '公益單位' : '一般民眾';
-        
-        addDebugLog(`🎯 當前 token: ${token}`, 'info');
-        addDebugLog(`👤 資料類型: ${displayType}`, 'info');
-        
-        // 直接使用第二次嘗試的方法（簡化請求）
-        addDebugLog('🔄 開始載入 (使用穩定方法)...', 'info');
-        
-        const baseUrl = getApiUrl();
-        const simpleUrl = `${baseUrl}?action=getData&type=${dataType}`;
-        
-        addDebugLog(`📡 載入請求: ${simpleUrl}`, 'info');
-        
-        const response = await fetch(simpleUrl, {
-            method: 'GET',
-            cache: 'no-cache'
-        });
-        
-        addDebugLog(`📊 回應狀態: ${response.status}`, 'info');
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+        // 🔧 修正版載入家具資料函數 - 跳過第一次嘗試
+        async function loadFurnitureData() {
+            addDebugLog('🚀 開始載入家具資料', 'info');
+            addDebugLog(`🎯 當前 token: ${token}`, 'info');
+            
+            if (location.protocol === 'file:') {
+                addDebugLog('檢測到本地端測試，載入模擬資料', 'warning');
+                loadTestData();
+                return;
+            }
+            
+            const dataType = token === 'Y2hhcml0eQ==' ? '公益單位' : '一般民眾';
+            addDebugLog(`👤 資料類型: ${dataType}`, 'info');
+            
+            // 🔧 直接使用穩定的方法（跳過第一次嘗試）
+            try {
+                addDebugLog('🔄 開始載入 (使用穩定方法)...', 'info');
+                
+                const baseUrl = API_CONFIG.BASE_URL;
+                const simpleUrl = `${baseUrl}?action=getData&type=${dataType === '公益單位' ? 'charity' : 'public'}`;
+                
+                addDebugLog(`📡 載入請求: ${simpleUrl}`, 'info');
+                
+                const response = await fetch(simpleUrl, {
+                    method: 'GET',
+                    cache: 'no-cache'
+                });
+                
+                addDebugLog(`📊 回應狀態: ${response.status}`, 'info');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const responseText = await response.text();
+                addDebugLog(`📏 回應長度: ${responseText.length} 字元`, 'info');
+                
+                if (responseText.length === 0) {
+                    throw new Error('回應內容為空');
+                }
+                
+                let result;
+                try {
+                    result = JSON.parse(responseText);
+                } catch (parseError) {
+                    addDebugLog(`❌ JSON 解析失敗: ${parseError.message}`, 'error');
+                    addDebugLog(`📋 回應內容前 200 字元: ${responseText.substring(0, 200)}`, 'error');
+                    throw new Error('回應格式錯誤');
+                }
+                
+                // 檢查 API 回應
+                addDebugLog('📋 API 回應檢查:', 'info');
+                addDebugLog(`✓ success: ${result.success}`, 'info');
+                addDebugLog(`✓ count: ${result.count}`, 'info');
+                addDebugLog(`✓ type: ${result.type}`, 'info');
+                
+                if (!result.success) {
+                    throw new Error(result.message || '載入失敗');
+                }
+                
+                if (!Array.isArray(result.data)) {
+                    throw new Error('資料格式錯誤');
+                }
+                
+                furnitureData = result.data;
+                addDebugLog(`✅ 成功載入 ${furnitureData.length} 筆資料`, 'success');
+                
+                if (furnitureData.length > 0) {
+                    addDebugLog(`📝 第一筆: ${furnitureData[0].家具編號} - ${furnitureData[0].家具名稱}`, 'info');
+                    if (furnitureData.length > 1) {
+                        const lastItem = furnitureData[furnitureData.length - 1];
+                        addDebugLog(`📝 最後一筆: ${lastItem.家具編號} - ${lastItem.家具名稱}`, 'info');
+                    }
+                }
+                
+                filteredData = [...furnitureData];
+                renderFurnitureList(filteredData);
+                updateFilterOptions();
+                addDebugLog('✅ 頁面渲染完成', 'success');
+                
+                // 移除測試資料提示
+                const testNotice = document.querySelector('.test-mode-notice');
+                if (testNotice) testNotice.remove();
+                
+            } catch (error) {
+                addDebugLog(`❌ 載入失敗: ${error.message}`, 'error');
+                addDebugLog('🔄 載入測試資料作為備用...', 'warning');
+                
+                if (dataType === '公益單位') {
+                    loadCharityTestData();
+                } else {
+                    loadTestData();
+                }
+                
+                // 顯示載入失敗提示
+                setTimeout(() => {
+                    const container = document.getElementById('furnitureList');
+                    if (container && !container.querySelector('.test-mode-notice')) {
+                        container.insertAdjacentHTML('afterbegin', `
+                            <div class="test-mode-notice" style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; margin-bottom: 20px; border-radius: 8px; text-align: center;">
+                                ⚠️ API 載入失敗，目前顯示測試資料<br>
+                                <small>資料類型：${dataType}</small>
+                            </div>
+                        `);
+                    }
+                }, 100);
+            }
         }
-        
-        const responseText = await response.text();
-        addDebugLog(`📏 回應長度: ${responseText.length} 字元`, 'info');
-        
-        if (responseText.length === 0) {
-            throw new Error('回應內容為空');
-        }
-        
-        let apiData;
-        try {
-            apiData = JSON.parse(responseText);
-        } catch (parseError) {
-            addDebugLog(`❌ JSON 解析失敗: ${parseError.message}`, 'error');
-            addDebugLog(`📋 回應內容前 200 字元: ${responseText.substring(0, 200)}`, 'error');
-            throw new Error('回應格式錯誤');
-        }
-        
-        // 檢查 API 回應
-        addDebugLog('📋 API 回應檢查:', 'info');
-        addDebugLog(`✓ success: ${apiData.success}`, 'info');
-        addDebugLog(`✓ count: ${apiData.count}`, 'info');
-        addDebugLog(`✓ type: ${apiData.type}`, 'info');
-        
-        if (!apiData.success) {
-            throw new Error(apiData.message || '載入失敗');
-        }
-        
-        if (!Array.isArray(apiData.data)) {
-            throw new Error('資料格式錯誤');
-        }
-        
-        addDebugLog(`✅ 成功載入 ${apiData.data.length} 筆資料`, 'success');
-        
-        if (apiData.data.length > 0) {
-            addDebugLog(`📝 第一筆: ${apiData.data[0].家具編號} - ${apiData.data[0].家具名稱}`, 'info');
-            addDebugLog(`📝 最後一筆: ${apiData.data[apiData.data.length - 1].家具編號} - ${apiData.data[apiData.data.length - 1].家具名稱}`, 'info');
-        }
-        
-        // 渲染資料
-        addDebugLog(`🎨 開始渲染 ${apiData.data.length} 筆家具資料`, 'info');
-        renderFurnitureList(apiData.data);
-        addDebugLog('✅ 家具列表渲染完成', 'success');
-        
-        // 更新篩選器
-        addDebugLog('🔄 更新篩選器選項...', 'info');
-        updateFilterOptions(apiData.data);
-        
-        addDebugLog('✅ 頁面渲染完成', 'success');
-        
-    } catch (error) {
-        addDebugLog(`❌ 載入失敗: ${error.message}`, 'error');
-        
-        // 顯示錯誤訊息
-        const container = document.getElementById('furniture-container');
-        if (container) {
-            container.innerHTML = `
-                <div class="error-message">
-                    <h3>載入失敗</h3>
-                    <p>錯誤：${error.message}</p>
-                    <button onclick="loadFurnitureData()" class="retry-btn">重新載入</button>
-                </div>
-            `;
-        }
-        
-        showNotification(`載入失敗：${error.message}`, 'error');
-    }
-}
 
-// 🔧 備用方案：如果上面還是不行，可以用這個更簡單的版本
-async function loadFurnitureDataSimple() {
-    addDebugLog('🚀 開始載入家具資料 (簡化版)', 'info');
-    
-    try {
-        const token = getTokenFromUrl();
-        const dataType = token === TOKENS.CHARITY ? 'charity' : 'public';
-        const displayType = token === TOKENS.CHARITY ? '公益單位' : '一般民眾';
-        
-        addDebugLog(`👤 資料類型: ${displayType}`, 'info');
-        
-        // 最簡單的請求方式
-        const baseUrl = getApiUrl();
-        const url = `${baseUrl}?action=getData&type=${dataType}`;
-        
-        addDebugLog(`📡 請求: ${url}`, 'info');
-        
-        const response = await fetch(url);
-        const apiData = await response.json();
-        
-        if (apiData.success && Array.isArray(apiData.data)) {
-            addDebugLog(`✅ 載入 ${apiData.data.length} 筆資料`, 'success');
-            renderFurnitureList(apiData.data);
-            updateFilterOptions(apiData.data);
-            addDebugLog('✅ 完成', 'success');
-        } else {
-            throw new Error(apiData.message || '載入失敗');
-        }
-        
-    } catch (error) {
-        addDebugLog(`❌ 載入失敗: ${error.message}`, 'error');
-        
-        const container = document.getElementById('furniture-container');
-        if (container) {
-            container.innerHTML = `
-                <div class="error-message">
-                    <h3>載入失敗</h3>
-                    <p>錯誤：${error.message}</p>
-                    <button onclick="loadFurnitureDataSimple()" class="retry-btn">重新載入</button>
-                </div>
-            `;
-        }
-    }
-}
         // 一般測試資料
         function loadTestData() {
             addDebugLog('📋 載入測試資料...', 'warning');
             furnitureData = [
                 {
-                    "家具編號": "T001",
-                    "家具名稱": "測試實木書桌",
-                    "種類": "書桌",
-                    "所在地縣市": "台北市",
-                    "實際地址": "台北市大安區忠孝東路四段100號",
-                    "購買年分": "2020",
-                    "新舊程度": "八成新",
-                    "家具材質": "實木",
-                    "家具重量": "25公斤",
-                    "第一領取時間": "2025-06-01",
-                    "第二領取時間": "2025-06-30",
-                    "轉移到倉庫": "",
-                    "倉庫地址": "",
-                    "費用": "3500元",
-                    "家具圖片1": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400"
-                }
-            ];
-            
-            addDebugLog(`📋 測試資料載入完成，共 ${furnitureData.length} 筆`, 'success');
-            filteredData = [...furnitureData];
-            renderFurnitureList(filteredData);
-            updateFilterOptions();
-            
-            document.getElementById('furnitureList').insertAdjacentHTML('afterbegin', `
-                <div class="test-mode-notice" style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; margin-bottom: 20px; border-radius: 8px; text-align: center;">
-                    📋 目前顯示測試資料<br>
-                    <small>API載入失敗，使用備用資料</small>
-                </div>
-            `);
-        }
-
-        // 公益單位測試資料
-        function loadCharityTestData() {
-            addDebugLog('📋 載入公益單位測試資料...', 'warning');
-            
-            furnitureData = [
-                {
-                    "家具編號": "T001",
-                    "家具名稱": "測試實木書桌 (公益)",
-                    "種類": "書桌",
-                    "所在地縣市": "台北市",
-                    "實際地址": "台北市大安區忠孝東路四段100號",
-                    "購買年分": "2020",
-                    "新舊程度": "八成新",
-                    "家具材質": "實木",
-                    "家具重量": "25公斤",
-                    "第一領取時間": "2025-06-01",
-                    "第二領取時間": "2025-06-30",
-                    "費用": "3500元",
-                    "上傳人姓名": "測試公益單位",
-                    "連絡電話": "02-1234-5678",
-                    "家具圖片1": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400"
-                }
-            ];
-            
-            addDebugLog(`📋 公益單位測試資料載入完成，共 ${furnitureData.length} 筆`, 'success');
-            filteredData = [...furnitureData];
-            renderFurnitureList(filteredData);
-            updateFilterOptions();
-        }
-
- // 🔧 改良版 updateData 函數 - 確保真的更新
-async function updateData() {
-    const updateBtn = document.getElementById('updateBtn');
-    const lastUpdate = document.getElementById('lastUpdate');
-    const originalText = updateBtn.innerHTML;
-    
-    addDebugLog('🔄 開始更新資料 (改良版 iframe)...', 'info');
-    
-    try {
-        updateBtn.disabled = true;
-        updateBtn.innerHTML = '更新中...';
-        
-        const timestamp = new Date().getTime();
-        const updateUrl = `${getUpdateApiUrl()}?action=update&_t=${timestamp}`;
-        
-        addDebugLog(`📡 更新 URL: ${updateUrl}`, 'info');
-        
-        // 方法1: 先嘗試直接在瀏覽器中開啟 API URL
-        addDebugLog('🔄 方法1: 嘗試在新視窗中執行更新...', 'info');
-        
-        // 開啟一個很小的彈出視窗來執行更新
-        const updateWindow = window.open(
-            updateUrl, 
-            'updateWindow', 
-            'width=300,height=200,left=9999,top=9999,toolbar=no,location=no,status=no,menubar=no,scrollbars=no,resizable=no'
-        );
-        
-        if (updateWindow) {
-            addDebugLog('✅ 更新視窗已開啟', 'info');
-            
-            // 等待一段時間讓 API 執行
-            setTimeout(() => {
-                try {
-                    updateWindow.close();
-                    addDebugLog('✅ 更新視窗已關閉', 'info');
-                } catch (e) {
-                    // 忽略關閉錯誤
-                }
-            }, 3000);
-            
-            // 等待 API 執行完成
-            await new Promise(resolve => setTimeout(resolve, 4000));
-            
-            updateBtn.innerHTML = '更新完成';
-            addDebugLog('✅ 更新請求已發送', 'success');
-            
-        } else {
-            // 如果彈出視窗被阻擋，使用 iframe 方式
-            addDebugLog('⚠️ 彈出視窗被阻擋，改用 iframe 方式', 'warning');
-            await updateWithIframe(updateUrl);
-        }
-        
-        // 延遲後重新載入資料來驗證更新
-        setTimeout(() => {
-            updateBtn.innerHTML = '驗證更新中';
-            addDebugLog('🔍 驗證更新是否成功...', 'info');
-            loadFurnitureData();
-        }, 2000);
-        
-        // 更新時間顯示
-        const now = new Date();
-        const timeString = now.toLocaleString('zh-TW', {
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-        lastUpdate.textContent = `最後更新：${timeString}`;
-        lastUpdate.style.display = 'inline';
-        
-        showNotification('更新請求已發送！', 'success');
-        
-        // 恢復按鈕
-        setTimeout(() => {
-            updateBtn.disabled = false;
-            updateBtn.innerHTML = originalText;
-        }, 5000);
-        
-    } catch (error) {
-        addDebugLog(`❌ 更新失敗: ${error.message}`, 'error');
-        updateBtn.innerHTML = '更新失敗';
-        showNotification(`更新失敗: ${error.message}`, 'error');
-        
-        setTimeout(() => {
-            updateBtn.disabled = false;
-            updateBtn.innerHTML = originalText;
-        }, 3000);
-    }
-}
-
-// 🔧 iframe 備用方式
-async function updateWithIframe(updateUrl) {
-    return new Promise((resolve, reject) => {
-        addDebugLog('🔄 使用 iframe 執行更新...', 'info');
-        
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.position = 'absolute';
-        iframe.style.left = '-9999px';
-        
-        let completed = false;
-        
-        const cleanup = () => {
-            if (iframe.parentNode) {
-                iframe.parentNode.removeChild(iframe);
-            }
-        };
-        
-        // 設定超時
-        const timeout = setTimeout(() => {
-            if (!completed) {
-                completed = true;
-                addDebugLog('⏰ iframe 更新超時，但可能已完成', 'warning');
-                cleanup();
-                resolve(); // 即使超時也當作成功
-            }
-        }, 8000);
-        
-        iframe.onload = () => {
-            if (!completed) {
-                completed = true;
-                clearTimeout(timeout);
-                addDebugLog('✅ iframe 載入完成', 'success');
-                cleanup();
-                resolve();
-            }
-        };
-        
-        iframe.onerror = () => {
-            if (!completed) {
-                completed = true;
-                clearTimeout(timeout);
-                addDebugLog('❌ iframe 載入錯誤', 'error');
-                cleanup();
-                resolve(); // 即使錯誤也繼續
-            }
-        };
-        
-        document.body.appendChild(iframe);
-        iframe.src = updateUrl;
-    });
-}
-
-// 🔧 替代方案：使用 img 標籤觸發請求
-async function updateDataWithImage() {
-    const updateBtn = document.getElementById('updateBtn');
-    const lastUpdate = document.getElementById('lastUpdate');
-    const originalText = updateBtn.innerHTML;
-    
-    addDebugLog('🔄 開始更新資料 (img 方式)...', 'info');
-    
-    try {
-        updateBtn.disabled = true;
-        updateBtn.innerHTML = '更新中...';
-        
-        const timestamp = new Date().getTime();
-        const updateUrl = `${getUpdateApiUrl()}?action=update&_t=${timestamp}`;
-        
-        addDebugLog(`📡 img 更新URL: ${updateUrl}`, 'info');
-        
-        // 建立隱藏的 img 元素來觸發請求
-        const img = new Image();
-        
-        const imgPromise = new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                addDebugLog('⏰ img 請求超時，視為成功', 'warning');
-                resolve();
-            }, 10000);
-            
-            img.onload = () => {
-                clearTimeout(timeout);
-                addDebugLog('✅ img 載入完成（可能出錯但請求已發送）', 'info');
-                resolve();
-            };
-            
-            img.onerror = () => {
-                clearTimeout(timeout);
-                addDebugLog('✅ img 載入錯誤（正常，因為回應是JSON）', 'info');
-                resolve(); // 錯誤是正常的，因為 API 回傳 JSON 不是圖片
-            };
-        });
-        
-        img.src = updateUrl;
-        await imgPromise;
-        
-        updateBtn.innerHTML = '更新完成';
-        addDebugLog('✅ 更新請求已發送 (img)', 'success');
-        
-        // 延遲後重新載入資料
-        setTimeout(() => {
-            updateBtn.innerHTML = '重新載入中';
-            loadFurnitureData();
-        }, 2000);
-        
-        // 更新時間顯示
-        const now = new Date();
-        const timeString = now.toLocaleString('zh-TW', {
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-        lastUpdate.textContent = `最後更新：${timeString}`;
-        lastUpdate.style.display = 'inline';
-        
-        showNotification('更新完成！', 'success');
-        
-        setTimeout(() => {
-            updateBtn.disabled = false;
-            updateBtn.innerHTML = originalText;
-        }, 4000);
-        
-    } catch (error) {
-        addDebugLog(`❌ img 更新失敗: ${error.message}`, 'error');
-        updateBtn.innerHTML = '更新失敗';
-        showNotification(`更新失敗: ${error.message}`, 'error');
-        
-        setTimeout(() => {
-            updateBtn.disabled = false;
-            updateBtn.innerHTML = originalText;
-        }, 3000);
-    }
-}
-
-        // 取得顯示地址
-        function getDisplayAddress(item) {
-            if (item.轉移到倉庫 && item.倉庫地址 && item.倉庫地址.trim() !== '') {
-                return `${item.倉庫地址} (倉庫)`;
-            } else {
-                return item.實際地址;
-            }
-        }
-
-        // 取得顯示費用
-        function getDisplayPrice(item) {
-            if (item.費用 && item.費用.trim() !== '') {
-                return item.費用;
-            } else {
-                return '--';
-            }
-        }
-
-        // 更新篩選器選項
-        function updateFilterOptions() {
-            addDebugLog('🔄 更新篩選器選項...', 'info');
-            
-            const categories = [...new Set(furnitureData.map(item => item.種類))].filter(Boolean);
-            const categorySelect = document.getElementById('categoryFilter');
-            const currentCategory = categorySelect.value;
-            categorySelect.innerHTML = '<option value="">所有種類</option>';
-            categories.forEach(category => {
-                const option = document.createElement('option');
-                option.value = category;
-                option.textContent = category;
-                if (category === currentCategory) option.selected = true;
-                categorySelect.appendChild(option);
-            });
-
-            const locations = [...new Set(furnitureData.map(item => item.所在地縣市))].filter(Boolean);
-            const locationSelect = document.getElementById('locationFilter');
-            const currentLocation = locationSelect.value;
-            locationSelect.innerHTML = '<option value="">所有地區</option>';
-            locations.forEach(location => {
-                const option = document.createElement('option');
-                option.value = location;
-                option.textContent = location;
-                if (location === currentLocation) option.selected = true;
-                locationSelect.appendChild(option);
-            });
-
-            const conditions = [...new Set(furnitureData.map(item => item.新舊程度))].filter(Boolean);
-            const conditionSelect = document.getElementById('conditionFilter');
-            const currentCondition = conditionSelect.value;
-            conditionSelect.innerHTML = '<option value="">新舊程度</option>';
-            conditions.forEach(condition => {
-                const option = document.createElement('option');
-                option.value = condition;
-                option.textContent = condition;
-                if (condition === currentCondition) option.selected = true;
-                conditionSelect.appendChild(option);
-            });
-            
-            addDebugLog(`✅ 篩選器更新完成 - 種類:${categories.length}, 地區:${locations.length}, 程度:${conditions.length}`, 'success');
-        }
-
-        // 顯示通知訊息
-        function showNotification(message, type = 'info') {
-            const existingNotification = document.querySelector('.notification');
-            if (existingNotification) {
-                existingNotification.remove();
-            }
-
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            
-            let icon = '';
-            switch(type) {
-                case 'success': icon = '✓'; break;
-                case 'error': icon = '✕'; break;
-                case 'loading': icon = '⟳'; break;
-                default: icon = 'ℹ'; break;
-            }
-
-            notification.innerHTML = `
-                <span class="notification-icon">${icon}</span>
-                <span>${message}</span>
-                <span class="notification-close" onclick="this.parentElement.remove()">×</span>
-            `;
-
-            document.body.appendChild(notification);
-            setTimeout(() => notification.classList.add('show'), 100);
-
-            if (type !== 'loading') {
-                setTimeout(() => {
-                    if (notification.parentElement) {
-                        notification.classList.remove('show');
-                        setTimeout(() => notification.remove(), 300);
-                    }
-                }, 4000);
-            }
-        }
-
-        // 渲染家具列表
-        function renderFurnitureList(data) {
-            addDebugLog(`🎨 開始渲染 ${data.length} 筆家具資料`, 'info');
-            
-            const container = document.getElementById('furnitureList');
-            
-            if (data.length === 0) {
-                container.innerHTML = '<div class="no-results">找不到符合條件的家具</div>';
-                addDebugLog('📋 顯示無結果訊息', 'warning');
-                return;
-            }
-
-            container.innerHTML = data.map(item => `
-                <div class="furniture-card">
-                    <div class="card-content">
-                        <img src="${item.家具圖片1 || 'https://via.placeholder.com/130x130?text=暫無圖片'}" alt="${item.家具名稱}" class="furniture-image">
-                        <div class="furniture-info">
-                            <div class="furniture-name">${item.家具名稱}</div>
-                            <div class="furniture-details">
-                                <div class="detail-item">
-                                    <span class="detail-label">編號:</span> ${item.家具編號}
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">種類:</span> ${item.種類}
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">地點:</span> ${item.所在地縣市}
-                                </div>
-                            </div>
-                        </div>
-                        <button class="detail-btn" onclick="showDetail('${item.家具編號}')">詳細資料</button>
-                    </div>
-                </div>
-            `).join('');
-            
-            addDebugLog('✅ 家具列表渲染完成', 'success');
-        }
-
-        // 顯示詳細資料
-        function showDetail(furnitureId) {
-            addDebugLog(`🔍 顯示家具詳細資料: ${furnitureId}`, 'info');
-            
-            const item = furnitureData.find(f => f.家具編號 === furnitureId);
-            if (!item) {
-                addDebugLog(`❌ 找不到家具編號: ${furnitureId}`, 'error');
-                return;
-            }
-
-            const modal = document.getElementById('detailModal');
-            const modalTitle = document.getElementById('modalTitle');
-            const modalBody = document.getElementById('modalBody');
-
-            modalTitle.textContent = item.家具名稱;
-
-            const images = [item.家具圖片1, item.家具圖片2, item.家具圖片3, item.家具圖片4]
-                .filter(img => img && img.trim() !== '');
-
-            modalBody.innerHTML = `
-                <div class="image-gallery">
-                    ${images.map(img => `<img src="${img}" alt="${item.家具名稱}" class="gallery-image">`).join('')}
-                </div>
-                
-                <div class="detail-grid">
-                    <div class="detail-group">
-                        <h4>基本資訊</h4>
-                        <div class="detail-row"><span>家具編號</span><span>${item.家具編號}</span></div>
-                        <div class="detail-row"><span>家具名稱</span><span>${item.家具名稱}</span></div>
-                        <div class="detail-row"><span>種類</span><span>${item.種類}</span></div>
-                        <div class="detail-row"><span>購買年分</span><span>${item.購買年分}</span></div>
-                        <div class="detail-row"><span>新舊程度</span><span>${item.新舊程度}</span></div>
-                        <div class="detail-row"><span>費用</span><span>${getDisplayPrice(item)}</span></div>
-                    </div>
-                    
-                    <div class="detail-group">
-                        <h4>規格與地點</h4>
-                        <div class="detail-row"><span>材質</span><span>${item.家具材質}</span></div>
-                        <div class="detail-row"><span>重量</span><span>${item.家具重量}</span></div>
-                        <div class="detail-row"><span>地址</span><span>${getDisplayAddress(item)}</span></div>
-                        <div class="detail-row"><span>領取期限</span><span>${item.第二領取時間}</span></div>
-                    </div>
-                </div>
-                
-                <div class="reserve-buttons">
-                    <button class="reserve-btn mobile-btn" onclick="reserveFurnitureMobile('${item.家具編號}')">
-                        📱 手機版預約
-                    </button>
-                    <button class="reserve-btn desktop-btn" onclick="reserveFurnitureDesktop('${item.家具編號}')">
-                        💻 電腦版預約
-                    </button>
-                </div>
-                
-                <div style="margin-top: 20px; padding: 15px; background: #f8f6f3; border-radius: 8px; font-size: 14px; color: #666; text-align: center; border-left: 4px solid #d4a574;">
-                    💡 按下預約後會提供家具持有者的聯絡方式，請自行聯絡取件，謝謝
-                </div>
-            `;
-
-            modal.style.display = 'block';
-            addDebugLog('✅ 詳細資料彈窗已顯示', 'success');
-        }
-
-        // 手機版預約 (LIFF)
-        function reserveFurnitureMobile(furnitureId) {
-            addDebugLog(`📱 手機版預約: ${furnitureId}`, 'info');
-            
-            const message = `§預約_${furnitureId}`;
-            
-            if (liff.isLoggedIn()) {
-                liff.sendMessages([{
-                    type: 'text',
-                    text: message
-                }]).then(() => {
-                    addDebugLog('✅ LIFF 預約訊息已送出', 'success');
-                    showNotification('預約訊息已送出！', 'success');
-                    document.getElementById('detailModal').style.display = 'none';
-                }).catch((err) => {
-                    addDebugLog(`❌ LIFF 發送失敗: ${err}`, 'error');
-                    showNotification('發送失敗，請稍後再試', 'error');
-                });
-            } else {
-                addDebugLog('⚠️ LIFF 未登入，使用剪貼簿方式', 'warning');
-                navigator.clipboard.writeText(message).then(() => {
-                    showNotification('預約訊息已複製到剪貼簿，請到LINE貼上發送', 'info');
-                }).catch(() => {
-                    showNotification(`請複製此訊息到LINE發送：${message}`, 'info');
-                });
-            }
-        }
-
-        // 電腦版預約 (Webhook)
-        async function reserveFurnitureDesktop(furnitureId) {
-            addDebugLog(`💻 電腦版預約: ${furnitureId}`, 'info');
-            
-            showNotification('處理中，請稍候...', 'loading');
-            
-            try {
-                const webhookData = {
-                    action: "預約",
-                    furnitureId: furnitureId,
-                    lineUserId: userLineId,
-                    deviceType: "desktop",
-                    timestamp: new Date().toISOString()
-                };
-                
-                addDebugLog(`📡 發送 Webhook 資料: ${JSON.stringify(webhookData)}`, 'info');
-                
-                const response = await fetch('https://hook.us1.make.com/9agluue4wcuqbtxt6al0jwva2rwooiik', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(webhookData)
-                });
-
-                addDebugLog(`📊 Webhook 回應: ${response.status}`, response.ok ? 'success' : 'error');
-
-                if (response.ok) {
-                    const result = await response.text();
-                    addDebugLog(`📋 Webhook 結果: ${result}`, 'success');
-                    showNotification(result || '預約成功！我們會盡快與您聯絡', 'success');
-                    document.getElementById('detailModal').style.display = 'none';
-                } else {
-                    throw new Error('伺服器回應錯誤');
-                }
-            } catch (error) {
-                addDebugLog(`❌ Webhook 發送失敗: ${error.message}`, 'error');
-                showNotification('預約失敗，請稍後再試或聯絡客服', 'error');
-            }
-        }
-
-        // 搜尋和篩選功能
-        function filterData() {
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            const categoryFilter = document.getElementById('categoryFilter').value;
-            const locationFilter = document.getElementById('locationFilter').value;
-            const conditionFilter = document.getElementById('conditionFilter').value;
-
-            filteredData = furnitureData.filter(item => {
-                const matchSearch = !searchTerm || 
-                    item.家具名稱.toLowerCase().includes(searchTerm) ||
-                    item.種類.toLowerCase().includes(searchTerm) ||
-                    item.所在地縣市.toLowerCase().includes(searchTerm);
-
-                const matchCategory = !categoryFilter || item.種類 === categoryFilter;
-                const matchLocation = !locationFilter || item.所在地縣市 === locationFilter;
-                const matchCondition = !conditionFilter || item.新舊程度 === conditionFilter;
-
-                return matchSearch && matchCategory && matchLocation && matchCondition;
-            });
-
-            addDebugLog(`🔍 篩選結果: ${filteredData.length}/${furnitureData.length} 筆`, 'info');
-            renderFurnitureList(filteredData);
-        }
-
-        // 事件監聽器
-        document.getElementById('searchInput').addEventListener('input', filterData);
-        document.getElementById('categoryFilter').addEventListener('change', filterData);
-        document.getElementById('locationFilter').addEventListener('change', filterData);
-        document.getElementById('conditionFilter').addEventListener('change', filterData);
-
-        // 關閉彈窗
-        document.querySelector('.close').addEventListener('click', function() {
-            document.getElementById('detailModal').style.display = 'none';
-        });
-
-        window.addEventListener('click', function(event) {
-            const modal = document.getElementById('detailModal');
-            if (event.target === modal) {
-                modal.style.display = 'none';
-            }
-        });
-
-        // 🔒 初始載入（含除錯模式初始化）
-        window.addEventListener('DOMContentLoaded', function() {
-            addDebugLog('🎬 頁面載入完成，開始初始化', 'info');
-            
-            // 初始化除錯模式
-            initializeDebugMode();
-            
-            loadFurnitureData();
-        });
-    </script>
-</body>
-</html>
