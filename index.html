@@ -720,155 +720,148 @@
             });
         });
 
-        // 🔧 強化版載入家具資料函數
-        async function loadFurnitureData() {
-            addDebugLog('🚀 開始載入家具資料', 'info');
-            addDebugLog(`🎯 當前 token: ${token}`, 'info');
-            
-            if (location.protocol === 'file:') {
-                addDebugLog('檢測到本地端測試，載入模擬資料', 'warning');
-                loadTestData();
-                return;
-            }
-            
-            const dataType = token === 'Y2hhcml0eQ==' ? '公益單位' : '一般民眾';
-            addDebugLog(`👤 資料類型: ${dataType}`, 'info');
-            
-            // 🔄 多重嘗試策略
-            const attempts = [
-                // 嘗試1: 標準請求
-                () => {
-                    const apiUrl = getApiUrl(token);
-                    addDebugLog(`📡 嘗試1 - 標準請求: ${apiUrl}`, 'info');
-                    return fetch(apiUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Cache-Control': 'no-cache, no-store, must-revalidate',
-                            'Pragma': 'no-cache',
-                            'Expires': '0',
-                            'Accept': 'application/json'
-                        },
-                        cache: 'no-store'
-                    });
-                },
-                
-                // 嘗試2: 簡化請求
-                () => {
-                    const simpleUrl = `${API_CONFIG.BASE_URL}?action=getData&type=${dataType === '公益單位' ? 'charity' : 'public'}`;
-                    addDebugLog(`📡 嘗試2 - 簡化請求: ${simpleUrl}`, 'info');
-                    return fetch(simpleUrl, {
-                        method: 'GET',
-                        headers: { 'Accept': 'application/json' }
-                    });
-                },
-                
-                // 嘗試3: 最基本請求
-                () => {
-                    const basicUrl = `${API_CONFIG.BASE_URL}?action=getData&type=${dataType === '公益單位' ? 'charity' : 'public'}`;
-                    addDebugLog(`📡 嘗試3 - 基本請求: ${basicUrl}`, 'info');
-                    return fetch(basicUrl);
-                }
-            ];
-            
-            // 🔄 逐一嘗試
-            for (let i = 0; i < attempts.length; i++) {
-                try {
-                    addDebugLog(`🔄 開始第 ${i + 1} 次嘗試...`, 'info');
-                    
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => {
-                        controller.abort();
-                        addDebugLog(`⏰ 第 ${i + 1} 次嘗試超時 (15秒)`, 'warning');
-                    }, 15000);
-                    
-                    const response = await attempts[i]();
-                    clearTimeout(timeoutId);
-                    
-                    addDebugLog(`📊 第 ${i + 1} 次嘗試回應: ${response.status}`, response.ok ? 'success' : 'error');
-                    
-                    if (!response.ok) {
-                        addDebugLog(`❌ 第 ${i + 1} 次嘗試失敗: HTTP ${response.status}`, 'warning');
-                        continue;
-                    }
-                    
-                    const responseText = await response.text();
-                    addDebugLog(`📏 回應長度: ${responseText.length} 字元`, 'info');
-                    
-                    if (responseText.includes('<html') || responseText.includes('<div')) {
-                        addDebugLog(`❌ 第 ${i + 1} 次嘗試回傳 HTML，不是 JSON`, 'warning');
-                        continue;
-                    }
-                    
-                    const result = JSON.parse(responseText);
-                    
-                    addDebugLog(`📋 API 回應檢查:`, 'info');
-                    addDebugLog(`  ✓ success: ${result.success}`, 'info');
-                    addDebugLog(`  ✓ count: ${result.count}`, 'info');
-                    addDebugLog(`  ✓ type: ${result.type}`, 'info');
-                    
-                    if (result.success && result.data && Array.isArray(result.data)) {
-                        furnitureData = result.data;
-                        addDebugLog(`✅ 第 ${i + 1} 次嘗試成功載入 ${furnitureData.length} 筆資料`, 'success');
-                        
-                        if (furnitureData.length > 0) {
-                            addDebugLog(`📝 第一筆: ${furnitureData[0].家具編號} - ${furnitureData[0].家具名稱}`, 'info');
-                            if (furnitureData.length > 1) {
-                                const lastItem = furnitureData[furnitureData.length - 1];
-                                addDebugLog(`📝 最後一筆: ${lastItem.家具編號} - ${lastItem.家具名稱}`, 'info');
-                            }
-                        }
-                        
-                        filteredData = [...furnitureData];
-                        renderFurnitureList(filteredData);
-                        updateFilterOptions();
-                        addDebugLog('✅ 頁面渲染完成', 'success');
-                        
-                        // 移除測試資料提示
-                        const testNotice = document.querySelector('.test-mode-notice');
-                        if (testNotice) testNotice.remove();
-                        
-                        return; // 成功載入，結束函數
-                        
-                    } else {
-                        addDebugLog(`❌ 第 ${i + 1} 次嘗試 - API 回應格式錯誤`, 'warning');
-                        continue;
-                    }
-                    
-                } catch (error) {
-                    addDebugLog(`❌ 第 ${i + 1} 次嘗試失敗: ${error.message}`, 'warning');
-                    
-                    if (i < attempts.length - 1) {
-                        addDebugLog(`🔄 準備嘗試第 ${i + 2} 種方法...`, 'info');
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        continue;
-                    }
-                }
-            }
-            
-            // 所有嘗試都失敗
-            addDebugLog('❌ 所有載入嘗試都失敗', 'error');
-            addDebugLog('🔄 載入測試資料作為備用...', 'warning');
-            
-            if (dataType === '公益單位') {
-                loadCharityTestData();
-            } else {
-                loadTestData();
-            }
-            
-            // 顯示載入失敗提示
-            setTimeout(() => {
-                const container = document.getElementById('furnitureList');
-                if (container && !container.querySelector('.test-mode-notice')) {
-                    container.insertAdjacentHTML('afterbegin', `
-                        <div class="test-mode-notice" style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; margin-bottom: 20px; border-radius: 8px; text-align: center;">
-                            ⚠️ API 載入失敗，目前顯示測試資料<br>
-                            <small>資料類型：${dataType}</small>
-                        </div>
-                    `);
-                }
-            }, 100);
+// 🔧 修正版 loadFurnitureData - 跳過第一次嘗試
+async function loadFurnitureData() {
+    addDebugLog('🚀 開始載入家具資料', 'info');
+    
+    try {
+        const token = getTokenFromUrl();
+        const dataType = token === TOKENS.CHARITY ? 'charity' : 'public';
+        const displayType = token === TOKENS.CHARITY ? '公益單位' : '一般民眾';
+        
+        addDebugLog(`🎯 當前 token: ${token}`, 'info');
+        addDebugLog(`👤 資料類型: ${displayType}`, 'info');
+        
+        // 直接使用第二次嘗試的方法（簡化請求）
+        addDebugLog('🔄 開始載入 (使用穩定方法)...', 'info');
+        
+        const baseUrl = getApiUrl();
+        const simpleUrl = `${baseUrl}?action=getData&type=${dataType}`;
+        
+        addDebugLog(`📡 載入請求: ${simpleUrl}`, 'info');
+        
+        const response = await fetch(simpleUrl, {
+            method: 'GET',
+            cache: 'no-cache'
+        });
+        
+        addDebugLog(`📊 回應狀態: ${response.status}`, 'info');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
         }
+        
+        const responseText = await response.text();
+        addDebugLog(`📏 回應長度: ${responseText.length} 字元`, 'info');
+        
+        if (responseText.length === 0) {
+            throw new Error('回應內容為空');
+        }
+        
+        let apiData;
+        try {
+            apiData = JSON.parse(responseText);
+        } catch (parseError) {
+            addDebugLog(`❌ JSON 解析失敗: ${parseError.message}`, 'error');
+            addDebugLog(`📋 回應內容前 200 字元: ${responseText.substring(0, 200)}`, 'error');
+            throw new Error('回應格式錯誤');
+        }
+        
+        // 檢查 API 回應
+        addDebugLog('📋 API 回應檢查:', 'info');
+        addDebugLog(`✓ success: ${apiData.success}`, 'info');
+        addDebugLog(`✓ count: ${apiData.count}`, 'info');
+        addDebugLog(`✓ type: ${apiData.type}`, 'info');
+        
+        if (!apiData.success) {
+            throw new Error(apiData.message || '載入失敗');
+        }
+        
+        if (!Array.isArray(apiData.data)) {
+            throw new Error('資料格式錯誤');
+        }
+        
+        addDebugLog(`✅ 成功載入 ${apiData.data.length} 筆資料`, 'success');
+        
+        if (apiData.data.length > 0) {
+            addDebugLog(`📝 第一筆: ${apiData.data[0].家具編號} - ${apiData.data[0].家具名稱}`, 'info');
+            addDebugLog(`📝 最後一筆: ${apiData.data[apiData.data.length - 1].家具編號} - ${apiData.data[apiData.data.length - 1].家具名稱}`, 'info');
+        }
+        
+        // 渲染資料
+        addDebugLog(`🎨 開始渲染 ${apiData.data.length} 筆家具資料`, 'info');
+        renderFurnitureList(apiData.data);
+        addDebugLog('✅ 家具列表渲染完成', 'success');
+        
+        // 更新篩選器
+        addDebugLog('🔄 更新篩選器選項...', 'info');
+        updateFilterOptions(apiData.data);
+        
+        addDebugLog('✅ 頁面渲染完成', 'success');
+        
+    } catch (error) {
+        addDebugLog(`❌ 載入失敗: ${error.message}`, 'error');
+        
+        // 顯示錯誤訊息
+        const container = document.getElementById('furniture-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="error-message">
+                    <h3>載入失敗</h3>
+                    <p>錯誤：${error.message}</p>
+                    <button onclick="loadFurnitureData()" class="retry-btn">重新載入</button>
+                </div>
+            `;
+        }
+        
+        showNotification(`載入失敗：${error.message}`, 'error');
+    }
+}
 
+// 🔧 備用方案：如果上面還是不行，可以用這個更簡單的版本
+async function loadFurnitureDataSimple() {
+    addDebugLog('🚀 開始載入家具資料 (簡化版)', 'info');
+    
+    try {
+        const token = getTokenFromUrl();
+        const dataType = token === TOKENS.CHARITY ? 'charity' : 'public';
+        const displayType = token === TOKENS.CHARITY ? '公益單位' : '一般民眾';
+        
+        addDebugLog(`👤 資料類型: ${displayType}`, 'info');
+        
+        // 最簡單的請求方式
+        const baseUrl = getApiUrl();
+        const url = `${baseUrl}?action=getData&type=${dataType}`;
+        
+        addDebugLog(`📡 請求: ${url}`, 'info');
+        
+        const response = await fetch(url);
+        const apiData = await response.json();
+        
+        if (apiData.success && Array.isArray(apiData.data)) {
+            addDebugLog(`✅ 載入 ${apiData.data.length} 筆資料`, 'success');
+            renderFurnitureList(apiData.data);
+            updateFilterOptions(apiData.data);
+            addDebugLog('✅ 完成', 'success');
+        } else {
+            throw new Error(apiData.message || '載入失敗');
+        }
+        
+    } catch (error) {
+        addDebugLog(`❌ 載入失敗: ${error.message}`, 'error');
+        
+        const container = document.getElementById('furniture-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="error-message">
+                    <h3>載入失敗</h3>
+                    <p>錯誤：${error.message}</p>
+                    <button onclick="loadFurnitureDataSimple()" class="retry-btn">重新載入</button>
+                </div>
+            `;
+        }
+    }
+}
         // 一般測試資料
         function loadTestData() {
             addDebugLog('📋 載入測試資料...', 'warning');
