@@ -1337,56 +1337,100 @@ async function updateDataWithImage() {
 
             addDebugLog(`✅ 找到家具: ${item.家具名稱}`, 'success');
 
+            // 🔧 加強彈窗元素檢查
             const modal = document.getElementById('detailModal');
             const modalTitle = document.getElementById('modalTitle');
             const modalBody = document.getElementById('modalBody');
 
-            modalTitle.textContent = item.家具名稱;
+            if (!modal) {
+                addDebugLog(`❌ 找不到 modal 元素`, 'error');
+                return;
+            }
+            if (!modalTitle) {
+                addDebugLog(`❌ 找不到 modalTitle 元素`, 'error');
+                return;
+            }
+            if (!modalBody) {
+                addDebugLog(`❌ 找不到 modalBody 元素`, 'error');
+                return;
+            }
 
-            const images = [item.家具圖片1, item.家具圖片2, item.家具圖片3, item.家具圖片4]
-                .filter(img => img && img.trim() !== '');
+            addDebugLog(`✅ 所有彈窗元素都存在`, 'success');
 
-            modalBody.innerHTML = `
-                <div class="image-gallery">
-                    ${images.map(img => `<img src="${img}" alt="${item.家具名稱}" class="gallery-image">`).join('')}
-                </div>
-                
-                <div class="detail-grid">
-                    <div class="detail-group">
-                        <h4>基本資訊</h4>
-                        <div class="detail-row"><span>家具編號</span><span>${item.家具編號 || furnitureId}</span></div>
-                        <div class="detail-row"><span>家具名稱</span><span>${item.家具名稱}</span></div>
-                        <div class="detail-row"><span>種類</span><span>${item.種類}</span></div>
-                        <div class="detail-row"><span>購買年分</span><span>${item.購買年分}</span></div>
-                        <div class="detail-row"><span>新舊程度</span><span>${item.新舊程度}</span></div>
-                        <div class="detail-row"><span>費用</span><span>${getDisplayPrice(item)}</span></div>
+            try {
+                modalTitle.textContent = item.家具名稱;
+                addDebugLog(`✅ 標題設定完成: ${item.家具名稱}`, 'success');
+
+                const images = [item.家具圖片1, item.家具圖片2, item.家具圖片3, item.家具圖片4]
+                    .filter(img => img && img.trim() !== '');
+
+                addDebugLog(`📷 圖片數量: ${images.length}`, 'info');
+
+                const modalContent = `
+                    <div class="image-gallery">
+                        ${images.map(img => `<img src="${img}" alt="${item.家具名稱}" class="gallery-image">`).join('')}
                     </div>
                     
-                    <div class="detail-group">
-                        <h4>規格與地點</h4>
-                        <div class="detail-row"><span>材質</span><span>${item.家具材質}</span></div>
-                        <div class="detail-row"><span>重量</span><span>${item.家具重量}</span></div>
-                        <div class="detail-row"><span>地址</span><span>${getDisplayAddress(item)}</span></div>
-                        <div class="detail-row"><span>領取期限</span><span>${item.第二領取時間}</span></div>
+                    <div class="detail-grid">
+                        <div class="detail-group">
+                            <h4>基本資訊</h4>
+                            <div class="detail-row"><span>家具編號</span><span>${item.家具編號 || furnitureId}</span></div>
+                            <div class="detail-row"><span>家具名稱</span><span>${item.家具名稱}</span></div>
+                            <div class="detail-row"><span>種類</span><span>${item.種類}</span></div>
+                            <div class="detail-row"><span>購買年分</span><span>${item.購買年分}</span></div>
+                            <div class="detail-row"><span>新舊程度</span><span>${item.新舊程度}</span></div>
+                            <div class="detail-row"><span>費用</span><span>${getDisplayPrice(item)}</span></div>
+                        </div>
+                        
+                        <div class="detail-group">
+                            <h4>規格與地點</h4>
+                            <div class="detail-row"><span>材質</span><span>${item.家具材質}</span></div>
+                            <div class="detail-row"><span>重量</span><span>${item.家具重量}</span></div>
+                            <div class="detail-row"><span>地址</span><span>${getDisplayAddress(item)}</span></div>
+                            <div class="detail-row"><span>領取期限</span><span>${item.第二領取時間}</span></div>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="reserve-buttons">
-                    <button class="reserve-btn mobile-btn" onclick="reserveFurnitureMobile('${item.家具編號 || furnitureId}')">
-                        📱 手機版預約
-                    </button>
-                    <button class="reserve-btn desktop-btn" onclick="reserveFurnitureDesktop('${item.家具編號 || furnitureId}')">
-                        💻 電腦版預約
-                    </button>
-                </div>
-                
-                <div style="margin-top: 20px; padding: 15px; background: #f8f6f3; border-radius: 8px; font-size: 14px; color: #666; text-align: center; border-left: 4px solid #d4a574;">
-                    💡 按下預約後會提供家具持有者的聯絡方式，請自行聯絡取件，謝謝
-                </div>
-            `;
+                    
+                    <div class="reserve-buttons">
+                        <button class="reserve-btn mobile-btn" onclick="reserveFurnitureMobile('${item.家具編號 || furnitureId}')">
+                            📱 手機版預約
+                        </button>
+                        <button class="reserve-btn desktop-btn" onclick="reserveFurnitureDesktop('${item.家具編號 || furnitureId}')">
+                            💻 電腦版預約
+                        </button>
+                    </div>
+                    
+                    <div style="margin-top: 20px; padding: 15px; background: #f8f6f3; border-radius: 8px; font-size: 14px; color: #666; text-align: center; border-left: 4px solid #d4a574;">
+                        💡 按下預約後會提供家具持有者的聯絡方式，請自行聯絡取件，謝謝
+                    </div>
+                `;
 
-            modal.style.display = 'block';
-            addDebugLog('✅ 詳細資料彈窗已顯示', 'success');
+                modalBody.innerHTML = modalContent;
+                addDebugLog(`✅ 彈窗內容設定完成`, 'success');
+
+                // 🔧 確保彈窗顯示
+                addDebugLog(`🔍 準備顯示彈窗...`, 'info');
+                addDebugLog(`🔍 當前 modal.style.display: ${modal.style.display}`, 'info');
+                
+                modal.style.display = 'block';
+                modal.style.visibility = 'visible';
+                modal.style.opacity = '1';
+                
+                addDebugLog(`🔍 設定後 modal.style.display: ${modal.style.display}`, 'info');
+                addDebugLog('✅ 詳細資料彈窗已顯示', 'success');
+
+                // 🔧 額外檢查：確保彈窗真的可見
+                setTimeout(() => {
+                    const computedStyle = window.getComputedStyle(modal);
+                    addDebugLog(`🔍 computed display: ${computedStyle.display}`, 'info');
+                    addDebugLog(`🔍 computed visibility: ${computedStyle.visibility}`, 'info');
+                    addDebugLog(`🔍 computed opacity: ${computedStyle.opacity}`, 'info');
+                }, 100);
+
+            } catch (error) {
+                addDebugLog(`❌ 設定彈窗內容時發生錯誤: ${error.message}`, 'error');
+                addDebugLog(`❌ 錯誤堆疊: ${error.stack}`, 'error');
+            }
         }
 
         // 手機版預約 (LIFF)
