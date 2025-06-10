@@ -1171,20 +1171,30 @@ async function updateDataWithImage() {
 
         // 取得顯示地址
         function getDisplayAddress(item) {
-            if (item.轉移到倉庫 && item.倉庫地址 && item.倉庫地址.trim() !== '') {
-                return `${item.倉庫地址} (倉庫)`;
+            // 🔧 強化地址處理
+            const warehouse = item.轉移到倉庫;
+            const warehouseAddr = item.倉庫地址;
+            const actualAddr = item.實際地址;
+            
+            if (warehouse && warehouseAddr && String(warehouseAddr).trim() !== '') {
+                return `${warehouseAddr} (倉庫)`;
+            } else if (actualAddr) {
+                return String(actualAddr);
             } else {
-                return item.實際地址;
+                return '地址未提供';
             }
         }
 
         // 取得顯示費用
         function getDisplayPrice(item) {
-            if (item.費用 && item.費用.trim() !== '') {
-                return item.費用;
-            } else {
-                return '--';
+            // 🔧 強化費用處理 - 確保是字串且有內容
+            if (item.費用 != null && item.費用 !== '') {
+                const priceStr = String(item.費用).trim();
+                if (priceStr !== '') {
+                    return priceStr;
+                }
             }
+            return '--';
         }
 
         // 更新篩選器選項
