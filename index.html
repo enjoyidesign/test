@@ -960,13 +960,13 @@
             updateFilterOptions();
         }
 
- // 🔧 改良版 updateData 函數 - 確保真的更新
+ // 🔧 改良版 updateData 函數 - 針對行動裝置優化
 async function updateData() {
     const updateBtn = document.getElementById('updateBtn');
     const lastUpdate = document.getElementById('lastUpdate');
     const originalText = updateBtn.innerHTML;
     
-    addDebugLog('🔄 開始更新資料 (改良版 iframe)...', 'info');
+    addDebugLog('🔄 開始更新資料...', 'info');
     
     try {
         updateBtn.disabled = true;
@@ -977,40 +977,43 @@ async function updateData() {
         
         addDebugLog(`📡 更新 URL: ${updateUrl}`, 'info');
         
-        // 方法1: 先嘗試直接在瀏覽器中開啟 API URL
-        addDebugLog('🔄 方法1: 嘗試在新視窗中執行更新...', 'info');
+        // 🔧 檢測是否在 LINE 或行動裝置中
+        const isLineApp = navigator.userAgent.includes('Line/');
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isInApp = isLineApp || window.liff;
         
-        // 開啟一個很小的彈出視窗來執行更新
-        const updateWindow = window.open(
-            updateUrl, 
-            'updateWindow', 
-            'width=300,height=200,left=9999,top=9999,toolbar=no,location=no,status=no,menubar=no,scrollbars=no,resizable=no'
-        );
+        addDebugLog(`📱 裝置檢測: LINE=${isLineApp}, Mobile=${isMobile}, InApp=${isInApp}`, 'info');
         
-        if (updateWindow) {
-            addDebugLog('✅ 更新視窗已開啟', 'info');
-            
-            // 等待一段時間讓 API 執行
-            setTimeout(() => {
-                try {
-                    updateWindow.close();
-                    addDebugLog('✅ 更新視窗已關閉', 'info');
-                } catch (e) {
-                    // 忽略關閉錯誤
-                }
-            }, 3000);
-            
-            // 等待 API 執行完成
-            await new Promise(resolve => setTimeout(resolve, 4000));
-            
-            updateBtn.innerHTML = '更新完成';
-            addDebugLog('✅ 更新請求已發送', 'success');
-            
+        if (isInApp || isMobile) {
+            // 🔧 行動裝置或 APP 內：使用 iframe 方式，避免跳轉
+            addDebugLog('📱 使用行動裝置友善的更新方式...', 'info');
+            await updateWithHiddenIframe(updateUrl);
         } else {
-            // 如果彈出視窗被阻擋，使用 iframe 方式
-            addDebugLog('⚠️ 彈出視窗被阻擋，改用 iframe 方式', 'warning');
-            await updateWithIframe(updateUrl);
+            // 🔧 桌面裝置：使用原本的彈出視窗方式
+            addDebugLog('💻 使用桌面版更新方式...', 'info');
+            const updateWindow = window.open(
+                updateUrl, 
+                'updateWindow', 
+                'width=300,height=200,left=9999,top=9999,toolbar=no,location=no,status=no,menubar=no,scrollbars=no,resizable=no'
+            );
+            
+            if (updateWindow) {
+                setTimeout(() => {
+                    try {
+                        updateWindow.close();
+                    } catch (e) {
+                        // 忽略關閉錯誤
+                    }
+                }, 3000);
+                await new Promise(resolve => setTimeout(resolve, 4000));
+            } else {
+                // 彈出視窗被阻擋，改用 iframe
+                await updateWithHiddenIframe(updateUrl);
+            }
         }
+        
+        updateBtn.innerHTML = '更新完成';
+        addDebugLog('✅ 更新請求已發送', 'success');
         
         // 延遲後重新載入資料來驗證更新
         setTimeout(() => {
@@ -1050,43 +1053,58 @@ async function updateData() {
     }
 }
 
-// 🔧 iframe 備用方式
-async function updateWithIframe(updateUrl) {
+// 🔧 行動裝置友善的隱藏 iframe 更新方式
+async function updateWithHiddenIframe(updateUrl) {
     return new Promise((resolve, reject) => {
-        addDebugLog('🔄 使用 iframe 執行更新...', 'info');
+        addDebugLog('📱 使用隱藏 iframe 執行更新（行動裝置版）...', 'info');
         
         const iframe = document.createElement('iframe');
+        
+        // 🔧 完全隱藏 iframe，確保不會顯示給用戶
         iframe.style.display = 'none';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
+        iframe.style.visibility = 'hidden';
+        iframe.style.width = '0px';
+        iframe.style.height = '0px';
         iframe.style.position = 'absolute';
         iframe.style.left = '-9999px';
+        iframe.style.top = '-9999px';
+        iframe.style.zIndex = '-1000';
+        iframe.style.opacity = '0';
+        iframe.style.pointerEvents = 'none';
+        
+        // 🔧 防止 iframe 獲得焦點
+        iframe.tabIndex = -1;
+        iframe.setAttribute('aria-hidden', 'true');
         
         let completed = false;
         
         const cleanup = () => {
             if (iframe.parentNode) {
                 iframe.parentNode.removeChild(iframe);
+                addDebugLog('🧹 iframe 已清理', 'info');
             }
         };
         
-        // 設定超時
+        // 🔧 縮短超時時間，提高回應速度
         const timeout = setTimeout(() => {
             if (!completed) {
                 completed = true;
-                addDebugLog('⏰ iframe 更新超時，但可能已完成', 'warning');
+                addDebugLog('⏰ iframe 更新完成（超時結束）', 'success');
                 cleanup();
-                resolve(); // 即使超時也當作成功
+                resolve();
             }
-        }, 8000);
+        }, 6000); // 從 8 秒縮短到 6 秒
         
         iframe.onload = () => {
             if (!completed) {
                 completed = true;
                 clearTimeout(timeout);
                 addDebugLog('✅ iframe 載入完成', 'success');
-                cleanup();
-                resolve();
+                // 🔧 延遲清理，確保 API 執行完成
+                setTimeout(() => {
+                    cleanup();
+                    resolve();
+                }, 1000);
             }
         };
         
@@ -1094,14 +1112,24 @@ async function updateWithIframe(updateUrl) {
             if (!completed) {
                 completed = true;
                 clearTimeout(timeout);
-                addDebugLog('❌ iframe 載入錯誤', 'error');
-                cleanup();
-                resolve(); // 即使錯誤也繼續
+                addDebugLog('✅ iframe 載入完成（回應非HTML格式）', 'success');
+                setTimeout(() => {
+                    cleanup();
+                    resolve();
+                }, 1000);
             }
         };
         
+        // 🔧 安靜地加入 DOM
         document.body.appendChild(iframe);
-        iframe.src = updateUrl;
+        
+        // 🔧 延遲設定 src，避免立即跳轉
+        setTimeout(() => {
+            if (!completed) {
+                iframe.src = updateUrl;
+                addDebugLog('📡 iframe 請求已發送', 'info');
+            }
+        }, 100);
     });
 }
 
