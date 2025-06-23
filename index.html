@@ -463,13 +463,7 @@
             background: linear-gradient(135deg, #6ba6d3 0%, #5a95be 100%);
         }
 
-        /* 🔧 庫存不足時禁用按鈕 */
-        .reserve-btn:disabled {
-            background: linear-gradient(135deg, #ccc 0%, #999 100%);
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
+        /* 🔧 庫存不足時禁用按鈕 - 移除此功能 */
 
         .notification {
             position: fixed;
@@ -581,7 +575,192 @@
             font-size: 12px;
         }
 
+        /* 數量選擇彈窗樣式 */
+        .quantity-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .quantity-modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 0;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 400px;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 20px 60px rgba(139, 115, 85, 0.2);
+        }
+
+        .quantity-modal-header {
+            background: linear-gradient(135deg, #f8f4f0 0%, #ede7e0 100%);
+            color: #8b7355;
+            padding: 25px;
+            border-radius: 20px 20px 0 0;
+            text-align: center;
+            border-bottom: 1px solid #e8e2db;
+        }
+
+        .quantity-modal-header h3 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .quantity-modal-body {
+            padding: 30px 25px;
+            text-align: center;
+        }
+
+        .quantity-info {
+            background: #f8f6f3;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            border-left: 4px solid #d4a574;
+        }
+
+        .quantity-info-text {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .available-quantity {
+            font-size: 16px;
+            font-weight: 600;
+            color: #8b7355;
+        }
+
+        .quantity-selector {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin: 25px 0;
+        }
+
+        .quantity-btn {
+            width: 50px;
+            height: 50px;
+            border: 2px solid #e8e2db;
+            background: white;
+            border-radius: 12px;
+            font-size: 24px;
+            font-weight: 600;
+            color: #8b7355;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .quantity-btn:hover:not(:disabled) {
+            border-color: #d4a574;
+            background: #f8f6f3;
+            transform: translateY(-1px);
+        }
+
+        .quantity-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .quantity-input {
+            width: 80px;
+            height: 50px;
+            border: 2px solid #e8e2db;
+            border-radius: 12px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: 600;
+            color: #2c2c2c;
+            background: white;
+        }
+
+        .quantity-input:focus {
+            outline: none;
+            border-color: #d4a574;
+            box-shadow: 0 0 0 3px rgba(212, 165, 116, 0.1);
+        }
+
+        .quantity-modal-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 25px;
+        }
+
+        .quantity-modal-btn {
+            flex: 1;
+            padding: 16px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 0.3px;
+        }
+
+        .quantity-cancel-btn {
+            background: #f5f5f5;
+            color: #666;
+            border: 2px solid #ddd;
+        }
+
+        .quantity-cancel-btn:hover {
+            background: #e8e8e8;
+            border-color: #bbb;
+        }
+
+        .quantity-confirm-btn {
+            background: linear-gradient(135deg, #d4a574 0%, #c89666 100%);
+            color: white;
+        }
+
+        .quantity-confirm-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(212, 165, 116, 0.3);
+            background: linear-gradient(135deg, #c89666 0%, #b8855a 100%);
+        }
+
+        .quantity-confirm-btn:disabled {
+            background: linear-gradient(135deg, #ccc 0%, #999 100%);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
         @media (max-width: 768px) {
+            .quantity-modal-content {
+                margin: 20% auto;
+                width: 95%;
+            }
+            
+            .quantity-selector {
+                gap: 10px;
+            }
+            
+            .quantity-btn {
+                width: 45px;
+                height: 45px;
+                font-size: 20px;
+            }
+            
+            .quantity-input {
+                width: 70px;
+                height: 45px;
+                font-size: 18px;
+            }
+        }
             .card-content {
                 flex-direction: column;
                 align-items: stretch;
@@ -710,6 +889,36 @@
 
     <div class="furniture-list" id="furnitureList">
         <!-- 家具卡片將在這裡動態生成 -->
+    </div>
+
+    <!-- 數量選擇彈窗 -->
+    <div id="quantityModal" class="quantity-modal">
+        <div class="quantity-modal-content">
+            <div class="quantity-modal-header">
+                <h3>選擇預約數量</h3>
+            </div>
+            <div class="quantity-modal-body">
+                <div class="quantity-info">
+                    <div class="quantity-info-text">此家具目前可預約數量</div>
+                    <div class="available-quantity" id="availableQuantityText">-- 件</div>
+                </div>
+                
+                <div style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 12px 15px; border-radius: 8px; font-size: 13px; line-height: 1.4; margin-bottom: 20px;">
+                    💡 <strong>重要提醒：</strong>此數量為預約數量，實際可領取數量需與家具提供者聯絡確認後方能確定
+                </div>
+                
+                <div class="quantity-selector">
+                    <button class="quantity-btn" id="decreaseBtn" onclick="changeQuantity(-1)">−</button>
+                    <input type="number" class="quantity-input" id="quantityInput" value="1" min="1" onchange="validateQuantity()">
+                    <button class="quantity-btn" id="increaseBtn" onclick="changeQuantity(1)">+</button>
+                </div>
+                
+                <div class="quantity-modal-buttons">
+                    <button class="quantity-modal-btn quantity-cancel-btn" onclick="closeQuantityModal()">取消</button>
+                    <button class="quantity-modal-btn quantity-confirm-btn" id="confirmQuantityBtn" onclick="confirmQuantity()">確認預約</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 詳細資料彈窗 -->
@@ -1358,7 +1567,6 @@ async function updateWithHiddenIframe(updateUrl) {
                 
                 // 🔧 取得數量顯示資訊
                 const quantityInfo = getQuantityDisplay(item.家具數量);
-                const stockAvailable = hasStock(item.家具數量);
                 
                 return `
                 <div class="furniture-card">
@@ -1367,7 +1575,7 @@ async function updateWithHiddenIframe(updateUrl) {
                         <div class="furniture-info">
                             <div class="furniture-name">
                                 ${item.家具名稱}
-                                <span class="quantity-badge ${quantityInfo.class}">${quantityInfo.text}</span>
+                                <span class="quantity-badge">${quantityInfo.text}</span>
                             </div>
                             <div class="furniture-details">
                                 <div class="detail-item">
@@ -1381,9 +1589,7 @@ async function updateWithHiddenIframe(updateUrl) {
                                 </div>
                             </div>
                         </div>
-                        <button class="detail-btn ${!stockAvailable ? 'disabled' : ''}" onclick="showDetail('${furnitureId}')" data-furniture-id="${furnitureId}" ${!stockAvailable ? 'style="opacity: 0.5; cursor: not-allowed;"' : ''}>
-                            ${stockAvailable ? '詳細資料' : '已售完'}
-                        </button>
+                        <button class="detail-btn" onclick="showDetail('${furnitureId}')" data-furniture-id="${furnitureId}">詳細資料</button>
                     </div>
                 </div>
                 `;
@@ -1416,11 +1622,10 @@ async function updateWithHiddenIframe(updateUrl) {
                 return;
             }
 
-            // 🔧 檢查庫存狀態
-            const stockAvailable = hasStock(item.家具數量);
+            // 🔧 取得數量顯示
             const quantityInfo = getQuantityDisplay(item.家具數量);
 
-            addDebugLog(`✅ 找到家具: ${item.家具名稱} (庫存: ${stockAvailable ? '有' : '無'})`, 'success');
+            addDebugLog(`✅ 找到家具: ${item.家具名稱} (數量: ${quantityInfo.text})`, 'success');
 
             // 🔧 加強彈窗元素檢查
             const modal = document.getElementById('detailModal');
@@ -1467,7 +1672,7 @@ async function updateWithHiddenIframe(updateUrl) {
                             <div class="detail-row">
                                 <span>數量</span>
                                 <span class="detail-quantity">
-                                    <span class="detail-quantity-badge ${quantityInfo.class}">${quantityInfo.text}</span>
+                                    <span class="detail-quantity-badge">${quantityInfo.text}</span>
                                 </span>
                             </div>
                             <div class="detail-row"><span>費用</span><span>${getDisplayPrice(item)}</span></div>
@@ -1482,7 +1687,7 @@ async function updateWithHiddenIframe(updateUrl) {
                         </div>
                     </div>
                     
-                    ${stockAvailable ? `
+                    
                     <div class="reserve-buttons">
                         <button class="reserve-btn mobile-btn" onclick="reserveFurnitureMobile('${item.家具編號 || furnitureId}')">
                             📱 手機版預約
@@ -1508,14 +1713,6 @@ async function updateWithHiddenIframe(updateUrl) {
                         </div>
                         <div style="text-align: center; font-weight: 500; color: #d4851c;">讓我們一起維護良好的分享環境！</div>
                     </div>
-                    ` : `
-                    <div style="margin-top: 20px; padding: 20px; background: #f8d7da; border-radius: 12px; font-size: 16px; color: #721c24; border: 1px solid #f5c6cb; text-align: center;">
-                        <div style="font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                            ❌ <span>此家具已售完</span>
-                        </div>
-                        <div style="font-size: 14px;">目前已無庫存，請選擇其他家具</div>
-                    </div>
-                    `}
                 `;
 
                 modalBody.innerHTML = modalContent;
@@ -1546,18 +1743,138 @@ async function updateWithHiddenIframe(updateUrl) {
             }
         }
 
-        // 🔧 修改：手機版預約 - 加入庫存檢查
-        function reserveFurnitureMobile(furnitureId) {
-            addDebugLog(`📱 手機版預約: ${furnitureId}`, 'info');
+        // 🔧 新增：數量選擇相關變數
+        let currentReserveFurnitureId = '';
+        let currentReserveType = ''; // 'mobile' 或 'desktop'
+        let currentAvailableQuantity = 0;
+
+        // 🔧 新增：數量選擇彈窗相關函數
+        function showQuantityModal(furnitureId, reserveType) {
+            addDebugLog(`🔢 顯示數量選擇彈窗: ${furnitureId}, 類型: ${reserveType}`, 'info');
             
-            // 🔧 檢查庫存
-            const item = furnitureData.find(f => f.家具編號 === furnitureId);
-            if (!item || !hasStock(item.家具數量)) {
-                showNotification('此家具已售完，無法預約', 'error');
+            // 找到對應的家具資料
+            const item = furnitureData.find(f => f.家具編號 === furnitureId) || 
+                        furnitureData.find((f, index) => `item_${index}` === furnitureId);
+            
+            if (!item) {
+                showNotification('找不到家具資料', 'error');
                 return;
             }
             
-            const message = `§預約_${furnitureId}`;
+            // 設定全域變數
+            currentReserveFurnitureId = furnitureId;
+            currentReserveType = reserveType;
+            currentAvailableQuantity = parseInt(item.家具數量) || 0;
+            
+            // 更新彈窗內容
+            document.getElementById('availableQuantityText').textContent = `${currentAvailableQuantity} 件`;
+            
+            // 重設數量輸入
+            const quantityInput = document.getElementById('quantityInput');
+            quantityInput.value = 1;
+            quantityInput.max = currentAvailableQuantity;
+            
+            // 更新按鈕狀態
+            updateQuantityButtons();
+            
+            // 顯示彈窗
+            document.getElementById('quantityModal').style.display = 'block';
+            
+            addDebugLog(`✅ 數量選擇彈窗已顯示，可用數量: ${currentAvailableQuantity}`, 'success');
+        }
+
+        function closeQuantityModal() {
+            document.getElementById('quantityModal').style.display = 'none';
+            currentReserveFurnitureId = '';
+            currentReserveType = '';
+            currentAvailableQuantity = 0;
+            addDebugLog('❌ 數量選擇彈窗已關閉', 'info');
+        }
+
+        function changeQuantity(delta) {
+            const quantityInput = document.getElementById('quantityInput');
+            let newValue = parseInt(quantityInput.value) + delta;
+            
+            // 確保數量在有效範圍內
+            newValue = Math.max(1, Math.min(newValue, currentAvailableQuantity));
+            
+            quantityInput.value = newValue;
+            updateQuantityButtons();
+            
+            addDebugLog(`🔢 數量已調整為: ${newValue}`, 'info');
+        }
+
+        function validateQuantity() {
+            const quantityInput = document.getElementById('quantityInput');
+            let value = parseInt(quantityInput.value) || 1;
+            
+            // 確保數量在有效範圍內
+            value = Math.max(1, Math.min(value, currentAvailableQuantity));
+            
+            quantityInput.value = value;
+            updateQuantityButtons();
+        }
+
+        function updateQuantityButtons() {
+            const quantityInput = document.getElementById('quantityInput');
+            const decreaseBtn = document.getElementById('decreaseBtn');
+            const increaseBtn = document.getElementById('increaseBtn');
+            const confirmBtn = document.getElementById('confirmQuantityBtn');
+            
+            const currentValue = parseInt(quantityInput.value);
+            
+            // 更新 +/- 按鈕狀態
+            decreaseBtn.disabled = currentValue <= 1;
+            increaseBtn.disabled = currentValue >= currentAvailableQuantity;
+            
+            // 更新確認按鈕狀態和文字
+            if (currentValue > 0 && currentValue <= currentAvailableQuantity) {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = `確認預約 ${currentValue} 件`;
+            } else {
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = '數量無效';
+            }
+        }
+
+        function confirmQuantity() {
+            const selectedQuantity = parseInt(document.getElementById('quantityInput').value);
+            
+            if (selectedQuantity <= 0 || selectedQuantity > currentAvailableQuantity) {
+                showNotification('請選擇有效的數量', 'error');
+                return;
+            }
+            
+            addDebugLog(`✅ 確認預約數量: ${selectedQuantity} 件`, 'success');
+            
+            // 關閉數量選擇彈窗
+            closeQuantityModal();
+            
+            // 根據預約類型執行對應的預約功能
+            if (currentReserveType === 'mobile') {
+                executeReserveMobile(currentReserveFurnitureId, selectedQuantity);
+            } else if (currentReserveType === 'desktop') {
+                executeReserveDesktop(currentReserveFurnitureId, selectedQuantity);
+            }
+        }
+
+        // 🔧 修改：手機版預約 - 先顯示數量選擇彈窗
+        function reserveFurnitureMobile(furnitureId) {
+            addDebugLog(`📱 準備手機版預約: ${furnitureId}`, 'info');
+            showQuantityModal(furnitureId, 'mobile');
+        }
+
+        // 🔧 修改：電腦版預約 - 先顯示數量選擇彈窗
+        function reserveFurnitureDesktop(furnitureId) {
+            addDebugLog(`💻 準備電腦版預約: ${furnitureId}`, 'info');
+            showQuantityModal(furnitureId, 'desktop');
+        }
+
+        // 🔧 新增：實際執行手機版預約（含數量）
+        function executeReserveMobile(furnitureId, quantity) {
+            addDebugLog(`📱 執行手機版預約: ${furnitureId}, 數量: ${quantity}`, 'info');
+            
+            const message = `§預約_${furnitureId}_數量${quantity}`;
             
             if (liff.isLoggedIn()) {
                 liff.sendMessages([{
@@ -1565,7 +1882,7 @@ async function updateWithHiddenIframe(updateUrl) {
                     text: message
                 }]).then(() => {
                     addDebugLog('✅ LIFF 預約訊息已送出', 'success');
-                    showNotification('預約訊息已送出！', 'success');
+                    showNotification(`預約訊息已送出！預約數量：${quantity} 件`, 'success');
                     document.getElementById('detailModal').style.display = 'none';
                 }).catch((err) => {
                     addDebugLog(`❌ LIFF 發送失敗: ${err}`, 'error');
@@ -1574,23 +1891,16 @@ async function updateWithHiddenIframe(updateUrl) {
             } else {
                 addDebugLog('⚠️ LIFF 未登入，使用剪貼簿方式', 'warning');
                 navigator.clipboard.writeText(message).then(() => {
-                    showNotification('預約訊息已複製到剪貼簿，請到LINE貼上發送', 'info');
+                    showNotification(`預約訊息已複製到剪貼簿，請到LINE貼上發送\n預約數量：${quantity} 件`, 'info');
                 }).catch(() => {
                     showNotification(`請複製此訊息到LINE發送：${message}`, 'info');
                 });
             }
         }
 
-        // 🔧 修改：電腦版預約 - 加入庫存檢查
-        async function reserveFurnitureDesktop(furnitureId) {
-            addDebugLog(`💻 電腦版預約: ${furnitureId}`, 'info');
-            
-            // 🔧 檢查庫存
-            const item = furnitureData.find(f => f.家具編號 === furnitureId);
-            if (!item || !hasStock(item.家具數量)) {
-                showNotification('此家具已售完，無法預約', 'error');
-                return;
-            }
+        // 🔧 新增：實際執行電腦版預約（含數量）
+        async function executeReserveDesktop(furnitureId, quantity) {
+            addDebugLog(`💻 執行電腦版預約: ${furnitureId}, 數量: ${quantity}`, 'info');
             
             showNotification('處理中，請稍候...', 'loading');
             
@@ -1598,6 +1908,7 @@ async function updateWithHiddenIframe(updateUrl) {
                 const webhookData = {
                     action: "預約",
                     furnitureId: furnitureId,
+                    quantity: quantity,
                     lineUserId: userLineId,
                     deviceType: "desktop",
                     timestamp: new Date().toISOString()
@@ -1618,7 +1929,7 @@ async function updateWithHiddenIframe(updateUrl) {
                 if (response.ok) {
                     const result = await response.text();
                     addDebugLog(`📋 Webhook 結果: ${result}`, 'success');
-                    showNotification(result || '預約成功！我們會盡快與您聯絡', 'success');
+                    showNotification(result || `預約成功！預約數量：${quantity} 件，我們會盡快與您聯絡`, 'success');
                     document.getElementById('detailModal').style.display = 'none';
                 } else {
                     throw new Error('伺服器回應錯誤');
@@ -1659,15 +1970,22 @@ async function updateWithHiddenIframe(updateUrl) {
         document.getElementById('locationFilter').addEventListener('change', filterData);
         document.getElementById('conditionFilter').addEventListener('change', filterData);
 
-        // 關閉彈窗
+        // 關閉彈窗事件監聽器
         document.querySelector('.close').addEventListener('click', function() {
             document.getElementById('detailModal').style.display = 'none';
         });
 
+        // 點擊彈窗外部關閉
         window.addEventListener('click', function(event) {
             const modal = document.getElementById('detailModal');
+            const quantityModal = document.getElementById('quantityModal');
+            
             if (event.target === modal) {
                 modal.style.display = 'none';
+            }
+            
+            if (event.target === quantityModal) {
+                closeQuantityModal();
             }
         });
 
