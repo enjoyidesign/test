@@ -1277,9 +1277,17 @@
                 return;
             }
 
+            // 🔧 加強全域變數設定的除錯
+            addDebugLog(`🔧 設定全域變數:`, 'info');
+            addDebugLog(`   - 設定前 currentReservationType: "${currentReservationType}"`, 'info');
+            addDebugLog(`   - 傳入的 reservationType: "${reservationType}"`, 'info');
+            
             // 設定全域變數
             currentReservationItem = item;
             currentReservationType = reservationType;
+            
+            addDebugLog(`   - 設定後 currentReservationType: "${currentReservationType}"`, 'info');
+            addDebugLog(`   - 設定後 currentReservationItem.家具名稱: "${currentReservationItem.家具名稱}"`, 'info');
 
             // 取得可用數量
             const availableQuantity = getQuantityDisplay(item);
@@ -1353,6 +1361,12 @@
             addDebugLog(`   - 編號: ${furnitureId}`, 'info');
             addDebugLog(`   - 名稱: ${currentReservationItem.家具名稱}`, 'info');
             addDebugLog(`   - 可用數量: ${getQuantityDisplay(currentReservationItem)}`, 'info');
+            
+            // 🔧 加強條件判斷的除錯
+            addDebugLog(`🔍 預約類型判斷:`, 'info');
+            addDebugLog(`   - currentReservationType = "${currentReservationType}"`, 'info');
+            addDebugLog(`   - 是否等於 'mobile': ${currentReservationType === 'mobile'}`, 'info');
+            addDebugLog(`   - 字串長度: ${currentReservationType.length}`, 'info');
 
             // 關閉數量選擇彈窗
             closeQuantityModal();
@@ -1360,11 +1374,16 @@
             // 關閉詳細資料彈窗
             document.getElementById('detailModal').style.display = 'none';
 
-            // 根據類型執行對應的預約函數
+            // 🔧 強化類型判斷邏輯
             if (currentReservationType === 'mobile') {
+                addDebugLog('🎯 執行手機版預約流程', 'info');
                 executeReservationMobile(furnitureId, selectedQuantity);
-            } else {
+            } else if (currentReservationType === 'desktop') {
+                addDebugLog('🎯 執行電腦版預約流程', 'info');
                 executeReservationDesktop(furnitureId, selectedQuantity);
+            } else {
+                addDebugLog(`❌ 未知的預約類型: "${currentReservationType}"`, 'error');
+                showNotification('預約類型錯誤', 'error');
             }
         }
 
