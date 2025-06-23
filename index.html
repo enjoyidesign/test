@@ -1018,12 +1018,31 @@
 
         // LIFF 初始化
         window.addEventListener('load', function() {
+            addDebugLog('🎬 開始初始化 LIFF...', 'info');
+            
+            if (typeof liff === 'undefined') {
+                addDebugLog('❌ LIFF SDK 未載入', 'error');
+                return;
+            }
+            
             liff.init({
                 liffId: '2007527995-VrMyorMd'
             }).then(() => {
-                addDebugLog('LIFF 初始化成功', 'success');
+                addDebugLog('✅ LIFF 初始化成功', 'success');
+                addDebugLog(`🔍 LIFF 環境資訊:`, 'info');
+                addDebugLog(`   - isLoggedIn: ${liff.isLoggedIn()}`, 'info');
+                addDebugLog(`   - isInClient: ${liff.isInClient()}`, 'info');
+                addDebugLog(`   - getOS: ${liff.getOS()}`, 'info');
+                addDebugLog(`   - getVersion: ${liff.getVersion()}`, 'info');
+                
+                // 🔧 如果未登入且在 LINE 客戶端中，嘗試登入
+                if (!liff.isLoggedIn() && liff.isInClient()) {
+                    addDebugLog('🔄 嘗試 LIFF 登入...', 'info');
+                    liff.login();
+                }
             }).catch((err) => {
-                addDebugLog(`LIFF 初始化失敗: ${err}`, 'error');
+                addDebugLog(`❌ LIFF 初始化失敗: ${JSON.stringify(err)}`, 'error');
+                addDebugLog(`❌ 錯誤詳細: ${err.message}`, 'error');
             });
         });
 
