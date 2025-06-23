@@ -1327,7 +1327,13 @@
             }
 
             const selectedQuantity = parseInt(document.getElementById('quantityInput').value) || 1;
-            addDebugLog(`✅ 確認預約: ${currentReservationItem.家具編號}, 數量: ${selectedQuantity}, 類型: ${currentReservationType}`, 'info');
+            const furnitureId = currentReservationItem.家具編號 || 'unknown';
+            
+            addDebugLog(`✅ 確認預約: ${furnitureId}, 數量: ${selectedQuantity}, 類型: ${currentReservationType}`, 'info');
+            addDebugLog(`🔍 當前家具資料:`, 'info');
+            addDebugLog(`   - 編號: ${furnitureId}`, 'info');
+            addDebugLog(`   - 名稱: ${currentReservationItem.家具名稱}`, 'info');
+            addDebugLog(`   - 可用數量: ${getQuantityDisplay(currentReservationItem)}`, 'info');
 
             // 關閉數量選擇彈窗
             closeQuantityModal();
@@ -1337,9 +1343,9 @@
 
             // 根據類型執行對應的預約函數
             if (currentReservationType === 'mobile') {
-                executeReservationMobile(currentReservationItem.家具編號, selectedQuantity);
+                executeReservationMobile(furnitureId, selectedQuantity);
             } else {
-                executeReservationDesktop(currentReservationItem.家具編號, selectedQuantity);
+                executeReservationDesktop(furnitureId, selectedQuantity);
             }
         }
 
@@ -1830,7 +1836,7 @@ async function updateWithHiddenIframe(updateUrl) {
             } else {
                 addDebugLog('⚠️ LIFF 未登入，使用剪貼簿方式', 'warning');
                 navigator.clipboard.writeText(message).then(() => {
-                    showNotification(`預約訊息已複製到剪貼簿（數量：${quantity} 件），請到LINE貼上發送`, 'info');
+                    showNotification(`預約訊息已複製到剪貼簿（數量：${quantity} 個），請到LINE貼上發送`, 'info');
                 }).catch(() => {
                     showNotification(`請複製此訊息到LINE發送：${message}`, 'info');
                 });
@@ -1855,26 +1861,48 @@ async function updateWithHiddenIframe(updateUrl) {
                 
                 addDebugLog(`📡 發送 Webhook 資料: ${JSON.stringify(webhookData)}`, 'info');
                 
+                // 🔧 加強錯誤處理和超時設定
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超時
+                
                 const response = await fetch('https://hook.us2.make.com/w1rjzy2ba1fa4354n6e31a2ju7wn294v', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     },
-                    body: JSON.stringify(webhookData)
+                    body: JSON.stringify(webhookData),
+                    signal: controller.signal
                 });
 
-                addDebugLog(`📊 Webhook 回應: ${response.status}`, response.ok ? 'success' : 'error');
+                clearTimeout(timeoutId);
+                
+                addDebugLog(`📊 Webhook 回應: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+                
+                // 🔧 詳細的回應處理
+                let responseText = '';
+                try {
+                    responseText = await response.text();
+                    addDebugLog(`📋 Webhook 回應內容: ${responseText}`, 'info');
+                } catch (textError) {
+                    addDebugLog(`❌ 無法讀取回應內容: ${textError.message}`, 'warning');
+                }
 
                 if (response.ok) {
-                    const result = await response.text();
-                    addDebugLog(`📋 Webhook 結果: ${result}`, 'success');
-                    showNotification(`預約成功！數量：${quantity} 件。我們會盡快與您聯絡`, 'success');
+                    addDebugLog(`✅ Webhook 成功發送`, 'success');
+                    showNotification(`預約成功！數量：${quantity} 個。我們會盡快與您聯絡`, 'success');
                 } else {
-                    throw new Error('伺服器回應錯誤');
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
+                
             } catch (error) {
                 addDebugLog(`❌ Webhook 發送失敗: ${error.message}`, 'error');
-                showNotification('預約失敗，請稍後再試或聯絡客服', 'error');
+                
+                if (error.name === 'AbortError') {
+                    showNotification('預約請求超時，請稍後再試', 'error');
+                } else {
+                    showNotification(`預約失敗: ${error.message}。請稍後再試或聯絡客服`, 'error');
+                }
             }
         }
 
