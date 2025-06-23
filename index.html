@@ -899,7 +899,7 @@
             <div class="quantity-modal-body">
                 <div class="quantity-info">
                     <div class="quantity-info-text">此家具目前可預約數量</div>
-                    <div class="available-quantity" id="availableQuantityText">-- 件</div>
+                    <div class="available-quantity" id="availableQuantityText">-- 個</div>
                 </div>
                 
                 <div style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 12px 15px; border-radius: 8px; font-size: 13px; line-height: 1.4; margin-bottom: 20px;">
@@ -1029,9 +1029,27 @@
 
         // 🔧 新增：取得數量顯示文字
         function getQuantityDisplay(item) {
-            const quantity = item.數量;
+            // 🔧 調試：顯示項目內容
+            if (isDebugMode) {
+                console.log('數量檢查 - 項目:', item);
+                console.log('數量檢查 - 所有欄位:', Object.keys(item));
+                console.log('數量檢查 - 家具數量欄位值:', item.家具數量);
+                console.log('數量檢查 - 家具數量類型:', typeof item.家具數量);
+            }
+            
+            // 🔧 正確的欄位名稱：家具數量
+            const quantity = item.家具數量 || item.數量 || item.quantity || item.Quantity;
+            
             if (quantity != null && quantity !== '' && quantity !== '0') {
-                return parseInt(quantity) || 1;
+                const parsed = parseInt(quantity);
+                if (isDebugMode) {
+                    console.log('數量檢查 - 解析後:', parsed);
+                }
+                return parsed || 1;
+            }
+            
+            if (isDebugMode) {
+                console.log('數量檢查 - 使用預設值: 1');
             }
             return 1; // 預設為 1
         }
@@ -1179,7 +1197,7 @@
                     "轉移到倉庫": "",
                     "倉庫地址": "",
                     "費用": "3500元",
-                    "數量": "3",
+                    "家具數量": "3",
                     "家具圖片1": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400"
                 }
             ];
@@ -1215,7 +1233,7 @@
                     "第一領取時間": "2025-06-01",
                     "第二領取時間": "2025-06-30",
                     "費用": "3500元",
-                    "數量": "5",
+                    "家具數量": "5",
                     "上傳人姓名": "測試公益單位",
                     "連絡電話": "02-1234-5678",
                     "家具圖片1": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400"
@@ -1249,7 +1267,7 @@
             addDebugLog(`📦 可用數量: ${availableQuantity}`, 'info');
 
             // 更新彈窗內容
-            document.getElementById('availableQuantityText').textContent = `${availableQuantity} 件`;
+            document.getElementById('availableQuantityText').textContent = `${availableQuantity} 個`;
             
             // 重設數量選擇器
             const quantityInput = document.getElementById('quantityInput');
@@ -1632,7 +1650,7 @@ async function updateWithHiddenIframe(updateUrl) {
                         <div class="furniture-info">
                             <div class="furniture-name">
                                 ${item.家具名稱}
-                                <span class="quantity-badge">${quantity}</span>
+                                <span class="quantity-badge">${quantity}個</span>
                             </div>
                             <div class="furniture-details">
                                 <div class="detail-item">
@@ -1725,7 +1743,7 @@ async function updateWithHiddenIframe(updateUrl) {
                             <div class="detail-row"><span>購買年分</span><span>${item.購買年分}</span></div>
                             <div class="detail-row"><span>新舊程度</span><span>${item.新舊程度}</span></div>
                             <div class="detail-row"><span>費用</span><span>${getDisplayPrice(item)}</span></div>
-                            <div class="detail-row"><span>可用數量</span><span><span class="detail-quantity-badge">${quantity}</span></span></div>
+                            <div class="detail-row"><span>可用數量</span><span><span class="detail-quantity-badge">${quantity}個</span></span></div>
                         </div>
                         
                         <div class="detail-group">
