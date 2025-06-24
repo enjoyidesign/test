@@ -1894,55 +1894,273 @@
             }
         }
 
-        // 💡 執行手機版預約
+        // 💡 強化版執行手機版預約 - 修正彈窗層級問題
         function executeReservationMobile(furnitureId, quantity) {
             addDebugLog(`📱 執行手機版預約: ${furnitureId}, 數量: ${quantity}`, 'info');
             
             const message = `§預約_${furnitureId}_數量${quantity}`;
             addDebugLog(`📝 準備發送的訊息: ${message}`, 'info');
             
-            if (typeof liff === 'undefined') {
-                addDebugLog('❌ LIFF 未載入，使用剪貼簿方式', 'warning');
-                copyToClipboard(message, quantity);
-                return;
+            // 🔧 立即檢查 LIFF 狀態（在彈窗關閉前）
+            let liffStatus = {
+                sdkLoaded: typeof liff !== 'undefined',
+                initialized: false,
+                inClient: false,
+                loggedIn: false
+            };
+            
+            if (liffStatus.sdkLoaded) {
+                try {
+                    liffStatus.initialized = liffInitialized;
+                    liffStatus.inClient = liff.isInClient();
+                    liffStatus.loggedIn = liff.isLoggedIn();
+                } catch (error) {
+                    addDebugLog(`❌ LIFF 狀態檢查錯誤: ${error.message}`, 'error');
+                }
             }
             
-            addDebugLog(`🔍 LIFF 狀態檢查:`, 'info');
-            addDebugLog(`   - isLoggedIn: ${liff.isLoggedIn()}`, 'info');
-            addDebugLog(`   - isInClient: ${liff.isInClient()}`, 'info');
+            addDebugLog(`🔍 當前 LIFF 狀態:`, 'info');
+            addDebugLog(`   - SDK 載入: ${liffStatus.sdkLoaded}`, 'info');
+            addDebugLog(`   - 已初始化: ${liffStatus.initialized}`, 'info');
+            addDebugLog(`   - 在客戶端: ${liffStatus.inClient}`, 'info');
+            addDebugLog(`   - 已登入: ${liffStatus.loggedIn}`, 'info');
             
-            if (liff.isLoggedIn() && liff.isInClient()) {
-                addDebugLog('✅ 在 LINE 客戶端且已登入，準備發送訊息...', 'info');
+            // 🔧 檢查用戶代理字串
+            const userAgent = navigator.userAgent;
+            const isLineApp = userAgent.includes('Line/');
+            addDebugLog(`🔍 User Agent 檢查: LINE App = ${isLineApp}`, 'info');
+            
+            // 🔧 如果所有條件都滿足，直接發送訊息
+            if (liffStatus.sdkLoaded && liffStatus.initialized && liffStatus.inClient && liffStatus.loggedIn) {
+                addDebugLog('✅ LIFF 條件完全滿足，準備發送訊息...', 'success');
                 
-                liff.sendMessages([{
-                    type: 'text',
-                    text: message
-                }]).then(() => {
-                    addDebugLog('✅ LIFF 預約訊息已送出到對話框', 'success');
-                    showNotification(`預約訊息已發送到 LINE 對話框！數量：${quantity} 個`, 'success');
-                }).catch((err) => {
-                    addDebugLog(`❌ LIFF 發送失敗: ${JSON.stringify(err)}`, 'error');
-                    copyToClipboard(message, quantity);
-                });
+                showNotification('正在發送預約訊息到 LINE...', 'loading');
+                
+                // 🔧 使用 setTimeout 確保在主執行緒中執行
+                setTimeout(() => {
+                    liff.sendMessages([{
+                        type: 'text',
+                        text: message
+                    }]).then(() => {
+                        addDebugLog('✅ LIFF 訊息發送成功！', 'success');
+                        showNotification(`✅ 預約訊息已發送到 LINE 對話框！\n數量：${quantity} 個`, 'success');
+                        
+                        // 🔧 可選：發送成功後關閉視窗
+                        // setTimeout(() => {
+                        //     if (liff.isInClient()) {
+                        //         liff.closeWindow();
+                        //     }
+                        // }, 2000);
+                        
+                    }).catch((error) => {
+                        addDebugLog(`❌ LIFF 訊息發送失敗:`, 'error');
+                        addDebugLog(`   - 錯誤名稱: ${error.name}`, 'error');
+                        addDebugLog(`   - 錯誤訊息: ${error.message}`, 'error');
+                        addDebugLog(`   - 完整錯誤: ${JSON.stringify(error)}`, 'error');
+                        
+                        showNotification('LIFF 發送失敗，改用剪貼簿方式', 'error');
+                        setTimeout(() => copyToClipboard(message, quantity), 1000);
+                    });
+                }, 100);
+                
+            } else if (liffStatus.sdkLoaded && liffStatus.inClient && !liffStatus.loggedIn) {
+                // 🔧 在 LINE 客戶端但未登入
+                addDebugLog('⚠️ 在 LINE 客戶端但未登入，嘗試重新初始化...', 'warning');
+                
+                showNotification('正在重新連接 LINE...', 'loading');
+                
+                // 嘗試重新初始化和登入
+                setTimeout(async () => {
+                    try {
+                        await liff.login();
+                        addDebugLog('✅ 重新登入成功，重新嘗試發送...', 'success');
+                        
+                        // 重新嘗試發送
+                        executeReservationMobile(furnitureId, quantity);
+                        
+                    } catch (loginError) {
+                        addDebugLog(`❌ 重新登入失敗: ${loginError.message}`, 'error');
+                        showNotification('登入失敗，使用剪貼簿方式', 'error');
+                        copyToClipboard(message, quantity);
+                    }
+                }, 500);
+                
+            } else if (isLineApp && !liffStatus.inClient) {
+                // 🔧 是 LINE App 但 LIFF 檢測失敗 - 可能是彈窗問題
+                addDebugLog('🔧 是 LINE App 但 LIFF 檢測失敗，嘗試重新初始化...', 'warning');
+                
+                showNotification('正在重新檢查 LINE 環境...', 'loading');
+                
+                // 重新初始化 LIFF
+                setTimeout(async () => {
+                    try {
+                        await initializeLiff();
+                        
+                        if (liff.isInClient() && liff.isLoggedIn()) {
+                            addDebugLog('✅ 重新初始化成功，重新嘗試發送...', 'success');
+                            executeReservationMobile(furnitureId, quantity);
+                        } else {
+                            addDebugLog('❌ 重新初始化後仍無法使用 LIFF', 'error');
+                            showNotification('LIFF 重新初始化失敗，使用剪貼簿方式', 'error');
+                            copyToClipboard(message, quantity);
+                        }
+                    } catch (reinitError) {
+                        addDebugLog(`❌ 重新初始化失敗: ${reinitError.message}`, 'error');
+                        showNotification('重新初始化失敗，使用剪貼簿方式', 'error');
+                        copyToClipboard(message, quantity);
+                    }
+                }, 500);
+                
             } else {
-                addDebugLog('⚠️ 不在 LINE 客戶端或未登入，使用剪貼簿方式', 'warning');
+                // 🔧 其他情況使用剪貼簿
+                addDebugLog('❌ 不滿足 LIFF 發送條件，使用剪貼簿方式', 'warning');
+                
+                if (!isLineApp) {
+                    showNotification('請在 LINE 應用程式中開啟此頁面', 'info');
+                } else if (!liffStatus.sdkLoaded) {
+                    showNotification('LIFF SDK 未載入，使用剪貼簿方式', 'info');
+                } else {
+                    showNotification('LIFF 環境異常，使用剪貼簿方式', 'info');
+                }
+                
                 copyToClipboard(message, quantity);
             }
         }
 
-        // 💡 複製到剪貼簿的輔助函數
+        // 💡 新增：強制重新初始化 LIFF 的函數
+        async function forceReinitializeLiff() {
+            addDebugLog('🔄 強制重新初始化 LIFF...', 'info');
+            
+            try {
+                // 重置狀態
+                liffInitialized = false;
+                liffReady = false;
+                
+                // 重新初始化
+                await initializeLiff();
+                
+                return liff.isInClient() && liff.isLoggedIn();
+            } catch (error) {
+                addDebugLog(`❌ 強制重新初始化失敗: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // 💡 強化版複製到剪貼簿函數
         function copyToClipboard(message, quantity) {
-            if (navigator.clipboard) {
+            addDebugLog('📋 執行剪貼簿複製...', 'info');
+            
+            if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(message).then(() => {
                     addDebugLog('✅ 訊息已複製到剪貼簿', 'success');
-                    showNotification(`預約訊息已複製到剪貼簿（數量：${quantity} 個），請到LINE貼上發送`, 'info');
-                }).catch(() => {
-                    addDebugLog('❌ 剪貼簿複製失敗', 'error');
-                    showNotification(`請手動複製此訊息到LINE：${message}`, 'info');
+                    showNotification(`📋 預約訊息已複製到剪貼簿\n數量：${quantity} 個\n\n請到 LINE 對話框貼上發送`, 'info');
+                }).catch((error) => {
+                    addDebugLog(`❌ 剪貼簿複製失敗: ${error.message}`, 'error');
+                    showManualCopyNotification(message, quantity);
                 });
             } else {
                 addDebugLog('❌ 瀏覽器不支援剪貼簿 API', 'error');
-                showNotification(`請手動複製此訊息到LINE：${message}`, 'info');
+                showManualCopyNotification(message, quantity);
+            }
+        }
+
+        // 💡 顯示手動複製通知
+        function showManualCopyNotification(message, quantity) {
+            // 移除現有通知
+            const existingNotification = document.querySelector('.notification');
+            if (existingNotification) {
+                existingNotification.remove();
+            }
+
+            const notification = document.createElement('div');
+            notification.className = 'notification info show';
+            notification.style.maxWidth = '350px';
+            notification.style.fontSize = '14px';
+            notification.style.lineHeight = '1.4';
+            
+            notification.innerHTML = `
+                <div style="margin-bottom: 10px;">
+                    <strong>📱 手動複製預約訊息</strong>
+                </div>
+                <div style="background: rgba(255,255,255,0.2); padding: 8px; border-radius: 6px; margin: 8px 0; font-family: monospace; word-break: break-all;">
+                    ${message}
+                </div>
+                <div style="font-size: 12px; opacity: 0.9;">
+                    請複製上方訊息到 LINE 發送<br>
+                    數量：${quantity} 個
+                </div>
+                <span class="notification-close" onclick="this.parentElement.remove()" style="position: absolute; top: 8px; right: 8px;">×</span>
+            `;
+
+            document.body.appendChild(notification);
+            
+            // 10秒後自動關閉
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.classList.remove('show');
+                    setTimeout(() => notification.remove(), 300);
+                }
+            }, 10000);
+        }
+
+        // 💡 新增：LIFF 狀態檢查函數（供除錯使用）
+        function checkLiffStatus() {
+            if (!isDebugMode) return;
+            
+            addDebugLog('🔍 手動檢查 LIFF 狀態', 'info');
+            addDebugLog(`   - typeof liff: ${typeof liff}`, 'info');
+            addDebugLog(`   - liffInitialized: ${liffInitialized}`, 'info');
+            addDebugLog(`   - liffReady: ${liffReady}`, 'info');
+            
+            if (typeof liff !== 'undefined') {
+                try {
+                    addDebugLog(`   - liff.isInClient(): ${liff.isInClient()}`, 'info');
+                    addDebugLog(`   - liff.isLoggedIn(): ${liff.isLoggedIn()}`, 'info');
+                    addDebugLog(`   - liff.getOS(): ${liff.getOS()}`, 'info');
+                    addDebugLog(`   - liff.getVersion(): ${liff.getVersion()}`, 'info');
+                    
+                    if (liff.isInClient()) {
+                        const context = liff.getContext();
+                        addDebugLog(`   - context.type: ${context?.type}`, 'info');
+                        addDebugLog(`   - context.viewType: ${context?.viewType}`, 'info');
+                    }
+                } catch (error) {
+                    addDebugLog(`❌ LIFF 狀態檢查錯誤: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // 💡 新增除錯按鈕功能
+        function addDebugButton() {
+            if (!isDebugMode) return;
+            
+            const debugBtn = document.querySelector('.toggle-debug');
+            if (debugBtn) {
+                debugBtn.onclick = function() {
+                    toggleDebugPanel();
+                    checkLiffStatus();
+                };
+                
+                // 新增 LIFF 測試按鈕
+                const testBtn = document.createElement('button');
+                testBtn.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    left: 120px;
+                    z-index: 999;
+                    background: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 10px 15px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 12px;
+                `;
+                testBtn.textContent = '🧪 測試 LIFF';
+                testBtn.onclick = function() {
+                    executeReservationMobile('TEST001', 1);
+                };
+                document.body.appendChild(testBtn);
             }
         }
 
@@ -2071,6 +2289,11 @@
             addDebugLog('🎬 頁面載入完成，開始初始化', 'info');
             
             initializeDebugMode();
+            
+            // 🔧 在除錯模式下新增測試按鈕
+            if (isDebugMode) {
+                setTimeout(addDebugButton, 1000);
+            }
             
             loadFurnitureData();
         });
