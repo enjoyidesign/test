@@ -1034,7 +1034,7 @@
             }
         }
 
-        // 💡 創建除錯按鈕的函數
+        // 💡 新增：測試更新功能的除錯按鈕
         function createDebugButtons() {
             addDebugLog('🔧 創建除錯按鈕...', 'info');
             
@@ -1047,7 +1047,8 @@
                 { text: '🐛 除錯', color: '#007bff', left: '20px', action: toggleDebugPanel },
                 { text: '🧪 測試 LIFF', color: '#28a745', left: '110px', action: () => executeReservationMobile('TEST001', 1) },
                 { text: '🔄 重新初始化', color: '#ffc107', left: '210px', action: forceReinitializeLiff },
-                { text: '🔍 檢查狀態', color: '#17a2b8', left: '320px', action: checkLiffStatus }
+                { text: '🔍 檢查狀態', color: '#17a2b8', left: '320px', action: checkLiffStatus },
+                { text: '📊 測試更新', color: '#6f42c1', left: '420px', action: testUpdateFunction }
             ];
             
             buttonConfigs.forEach((config, index) => {
@@ -1078,6 +1079,21 @@
             });
             
             addDebugLog('🎉 所有除錯按鈕創建完成', 'success');
+        }
+
+        // 💡 新增：測試更新功能
+        function testUpdateFunction() {
+            addDebugLog('📊 === 測試更新功能 ===', 'info');
+            showNotification('正在測試更新功能...', 'loading');
+            
+            // 直接調用更新函數
+            updateData().then(() => {
+                addDebugLog('✅ 更新測試完成', 'success');
+                showNotification('更新測試完成，請查看除錯日誌', 'success');
+            }).catch((error) => {
+                addDebugLog(`❌ 更新測試失敗: ${error.message}`, 'error');
+                showNotification('更新測試失敗，請查看除錯日誌', 'error');
+            });
         }
 
         // 💡 改良版 LIFF 狀態檢查函數
@@ -1620,7 +1636,7 @@
             }
         }
 
-        // 更新資料函數
+        // 🔧 改良版更新資料函數 - 解決 CORS 和 iframe 問題
         async function updateData() {
             const updateBtn = document.getElementById('updateBtn');
             const lastUpdate = document.getElementById('lastUpdate');
@@ -1637,46 +1653,41 @@
                 
                 addDebugLog(`📡 更新 URL: ${updateUrl}`, 'info');
                 
-                const isLineApp = navigator.userAgent.includes('Line/');
-                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                const isInApp = isLineApp || window.liff;
+                // 🔧 檢測環境
+                const userAgent = navigator.userAgent;
+                const isLineApp = userAgent.includes('Line/');
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+                const isInLiffIframe = window.self !== window.top;
                 
-                addDebugLog(`📱 裝置檢測: LINE=${isLineApp}, Mobile=${isMobile}, InApp=${isInApp}`, 'info');
+                addDebugLog(`🔍 環境檢測:`, 'info');
+                addDebugLog(`   - LINE App: ${isLineApp}`, 'info');
+                addDebugLog(`   - Mobile: ${isMobile}`, 'info');
+                addDebugLog(`   - 在 iframe 中: ${isInLiffIframe}`, 'info');
                 
-                if (isInApp || isMobile) {
-                    addDebugLog('📱 使用行動裝置友善的更新方式...', 'info');
-                    await updateWithHiddenIframe(updateUrl);
+                // 🔧 策略 1：先嘗試使用 Image 請求（最可靠）
+                addDebugLog('📱 嘗試使用 Image 請求...', 'info');
+                const success = await updateWithImageRequest(updateUrl);
+                
+                if (success) {
+                    addDebugLog('✅ Image 請求成功', 'success');
+                    updateBtn.innerHTML = '更新完成';
+                    showNotification('更新請求已發送！', 'success');
                 } else {
-                    addDebugLog('💻 使用桌面版更新方式...', 'info');
-                    const updateWindow = window.open(
-                        updateUrl, 
-                        'updateWindow', 
-                        'width=300,height=200,left=9999,top=9999,toolbar=no,location=no,status=no,menubar=no,scrollbars=no,resizable=no'
-                    );
-                    
-                    if (updateWindow) {
-                        setTimeout(() => {
-                            try {
-                                updateWindow.close();
-                            } catch (e) {
-                                // 忽略關閉錯誤
-                            }
-                        }, 3000);
-                        await new Promise(resolve => setTimeout(resolve, 4000));
-                    } else {
-                        await updateWithHiddenIframe(updateUrl);
-                    }
+                    // 🔧 策略 2：使用 script tag 方式
+                    addDebugLog('📱 Image 請求失敗，嘗試 script tag...', 'warning');
+                    await updateWithScriptTag(updateUrl);
+                    updateBtn.innerHTML = '更新完成';
+                    showNotification('更新請求已發送！', 'success');
                 }
                 
-                updateBtn.innerHTML = '更新完成';
-                addDebugLog('✅ 更新請求已發送', 'success');
-                
+                // 延遲後重新載入資料來驗證更新
                 setTimeout(() => {
                     updateBtn.innerHTML = '驗證更新中';
                     addDebugLog('🔍 驗證更新是否成功...', 'info');
                     loadFurnitureData();
-                }, 2000);
+                }, 3000);
                 
+                // 更新時間顯示
                 const now = new Date();
                 const timeString = now.toLocaleString('zh-TW', {
                     month: '2-digit',
@@ -1687,12 +1698,11 @@
                 lastUpdate.textContent = `最後更新：${timeString}`;
                 lastUpdate.style.display = 'inline';
                 
-                showNotification('更新請求已發送！', 'success');
-                
+                // 恢復按鈕
                 setTimeout(() => {
                     updateBtn.disabled = false;
                     updateBtn.innerHTML = originalText;
-                }, 5000);
+                }, 6000);
                 
             } catch (error) {
                 addDebugLog(`❌ 更新失敗: ${error.message}`, 'error');
@@ -1706,26 +1716,129 @@
             }
         }
 
-        // 行動裝置友善的隱藏 iframe 更新方式
+        // 🔧 新增：使用 Image 請求的更新方式（避免 CORS 問題）
+        function updateWithImageRequest(updateUrl) {
+            return new Promise((resolve) => {
+                addDebugLog('🖼️ 使用 Image 請求執行更新...', 'info');
+                
+                const img = new Image();
+                let completed = false;
+                
+                // 設定超時
+                const timeout = setTimeout(() => {
+                    if (!completed) {
+                        completed = true;
+                        addDebugLog('⏰ Image 請求超時，視為成功', 'warning');
+                        resolve(true);
+                    }
+                }, 8000);
+                
+                img.onload = () => {
+                    if (!completed) {
+                        completed = true;
+                        clearTimeout(timeout);
+                        addDebugLog('✅ Image 請求載入完成', 'success');
+                        resolve(true);
+                    }
+                };
+                
+                img.onerror = () => {
+                    if (!completed) {
+                        completed = true;
+                        clearTimeout(timeout);
+                        addDebugLog('✅ Image 請求錯誤（正常，因為不是圖片）', 'success');
+                        resolve(true); // 錯誤也視為成功，因為請求已發送
+                    }
+                };
+                
+                // 發送請求
+                img.src = updateUrl + '&method=image&rand=' + Math.random();
+                addDebugLog('📡 Image 請求已發送', 'info');
+            });
+        }
+
+        // 🔧 新增：使用 Script Tag 的更新方式（JSONP 風格）
+        function updateWithScriptTag(updateUrl) {
+            return new Promise((resolve) => {
+                addDebugLog('📜 使用 Script Tag 執行更新...', 'info');
+                
+                // 創建唯一的回調函數名
+                const callbackName = 'updateCallback_' + Date.now();
+                
+                // 設定全域回調函數
+                window[callbackName] = function(response) {
+                    addDebugLog('✅ Script Tag 回調執行', 'success');
+                    addDebugLog(`📋 回應: ${JSON.stringify(response)}`, 'info');
+                    
+                    // 清理
+                    delete window[callbackName];
+                    if (script.parentNode) {
+                        script.parentNode.removeChild(script);
+                    }
+                    
+                    resolve(true);
+                };
+                
+                // 創建 script 元素
+                const script = document.createElement('script');
+                script.src = updateUrl + '&callback=' + callbackName + '&method=jsonp';
+                
+                // 錯誤處理
+                script.onerror = () => {
+                    addDebugLog('✅ Script Tag 完成（可能無回調）', 'success');
+                    
+                    // 清理
+                    delete window[callbackName];
+                    if (script.parentNode) {
+                        script.parentNode.removeChild(script);
+                    }
+                    
+                    resolve(true);
+                };
+                
+                // 超時處理
+                setTimeout(() => {
+                    if (window[callbackName]) {
+                        addDebugLog('⏰ Script Tag 超時，視為成功', 'warning');
+                        delete window[callbackName];
+                        if (script.parentNode) {
+                            script.parentNode.removeChild(script);
+                        }
+                        resolve(true);
+                    }
+                }, 8000);
+                
+                // 添加到頁面
+                document.head.appendChild(script);
+                addDebugLog('📡 Script Tag 請求已發送', 'info');
+            });
+        }
+
+        // 🔧 保留原有的 iframe 方式作為備用（已改良）
         async function updateWithHiddenIframe(updateUrl) {
             return new Promise((resolve, reject) => {
-                addDebugLog('📱 使用隱藏 iframe 執行更新（行動裝置版）...', 'info');
+                addDebugLog('📱 使用隱藏 iframe 執行更新...', 'info');
                 
                 const iframe = document.createElement('iframe');
                 
-                iframe.style.display = 'none';
-                iframe.style.visibility = 'hidden';
-                iframe.style.width = '0px';
-                iframe.style.height = '0px';
-                iframe.style.position = 'absolute';
-                iframe.style.left = '-9999px';
-                iframe.style.top = '-9999px';
-                iframe.style.zIndex = '-1000';
-                iframe.style.opacity = '0';
-                iframe.style.pointerEvents = 'none';
+                // 完全隱藏 iframe
+                iframe.style.cssText = `
+                    display: none !important;
+                    visibility: hidden !important;
+                    width: 0px !important;
+                    height: 0px !important;
+                    position: absolute !important;
+                    left: -9999px !important;
+                    top: -9999px !important;
+                    z-index: -1000 !important;
+                    opacity: 0 !important;
+                    pointer-events: none !important;
+                    border: none !important;
+                `;
                 
                 iframe.tabIndex = -1;
                 iframe.setAttribute('aria-hidden', 'true');
+                iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
                 
                 let completed = false;
                 
@@ -1743,7 +1856,7 @@
                         cleanup();
                         resolve();
                     }
-                }, 6000);
+                }, 10000);
                 
                 iframe.onload = () => {
                     if (!completed) {
@@ -1761,7 +1874,7 @@
                     if (!completed) {
                         completed = true;
                         clearTimeout(timeout);
-                        addDebugLog('✅ iframe 載入完成（回應非HTML格式）', 'success');
+                        addDebugLog('✅ iframe 載入完成（非HTML回應）', 'success');
                         setTimeout(() => {
                             cleanup();
                             resolve();
@@ -1769,8 +1882,10 @@
                     }
                 };
                 
+                // 加入 DOM
                 document.body.appendChild(iframe);
                 
+                // 延遲設定 src
                 setTimeout(() => {
                     if (!completed) {
                         iframe.src = updateUrl;
