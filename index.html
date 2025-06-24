@@ -1021,11 +1021,175 @@
             }
         }
 
-        // 初始化除錯模式顯示
+        // 🔧 強化除錯模式初始化
         function initializeDebugMode() {
             if (isDebugMode) {
                 document.body.classList.add('debug-mode');
                 addDebugLog('🔓 除錯模式已啟用', 'success');
+                
+                // 🔧 立即創建除錯按鈕
+                setTimeout(() => {
+                    createDebugButtons();
+                }, 100);
+            }
+        }
+
+        // 💡 創建除錯按鈕的函數
+        function createDebugButtons() {
+            addDebugLog('🔧 創建除錯按鈕...', 'info');
+            
+            // 移除舊的按鈕（如果存在）
+            const existingButtons = document.querySelectorAll('.debug-button');
+            existingButtons.forEach(btn => btn.remove());
+            
+            // 按鈕配置
+            const buttonConfigs = [
+                { text: '🐛 除錯', color: '#007bff', left: '20px', action: toggleDebugPanel },
+                { text: '🧪 測試 LIFF', color: '#28a745', left: '110px', action: () => executeReservationMobile('TEST001', 1) },
+                { text: '🔄 重新初始化', color: '#ffc107', left: '210px', action: forceReinitializeLiff },
+                { text: '🔍 檢查狀態', color: '#17a2b8', left: '320px', action: checkLiffStatus }
+            ];
+            
+            buttonConfigs.forEach((config, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'debug-button';
+                btn.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    left: ${config.left};
+                    z-index: 10000;
+                    background: ${config.color};
+                    color: white;
+                    border: none;
+                    padding: 8px 12px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 11px;
+                    font-weight: 500;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                    display: block !important;
+                    visibility: visible !important;
+                `;
+                btn.textContent = config.text;
+                btn.onclick = config.action;
+                document.body.appendChild(btn);
+                
+                addDebugLog(`✅ 創建按鈕: ${config.text}`, 'success');
+            });
+            
+            addDebugLog('🎉 所有除錯按鈕創建完成', 'success');
+        }
+
+        // 💡 改良版 LIFF 狀態檢查函數
+        function checkLiffStatus() {
+            addDebugLog('🔍 === LIFF 狀態檢查 ===', 'info');
+            
+            // 基本檢查
+            addDebugLog(`📱 User Agent: ${navigator.userAgent}`, 'info');
+            addDebugLog(`🌐 Location: ${window.location.href}`, 'info');
+            addDebugLog(`⏰ 當前時間: ${new Date().toLocaleString()}`, 'info');
+            
+            // LIFF SDK 檢查
+            addDebugLog(`🔧 typeof liff: ${typeof liff}`, 'info');
+            addDebugLog(`🔧 liffInitialized: ${liffInitialized}`, 'info');
+            addDebugLog(`🔧 liffReady: ${liffReady}`, 'info');
+            
+            if (typeof liff !== 'undefined') {
+                try {
+                    const isInClient = liff.isInClient();
+                    const isLoggedIn = liff.isLoggedIn();
+                    
+                    addDebugLog(`✅ liff.isInClient(): ${isInClient}`, isInClient ? 'success' : 'error');
+                    addDebugLog(`✅ liff.isLoggedIn(): ${isLoggedIn}`, isLoggedIn ? 'success' : 'error');
+                    addDebugLog(`✅ liff.getOS(): ${liff.getOS()}`, 'info');
+                    addDebugLog(`✅ liff.getVersion(): ${liff.getVersion()}`, 'info');
+                    addDebugLog(`✅ liff.getLanguage(): ${liff.getLanguage()}`, 'info');
+                    
+                    if (isInClient) {
+                        try {
+                            const context = liff.getContext();
+                            addDebugLog(`✅ Context Type: ${context?.type}`, 'info');
+                            addDebugLog(`✅ Context ViewType: ${context?.viewType}`, 'info');
+                            addDebugLog(`✅ Context UserId: ${context?.userId ? '已設定' : '未設定'}`, context?.userId ? 'success' : 'warning');
+                        } catch (contextError) {
+                            addDebugLog(`❌ 取得 Context 失敗: ${contextError.message}`, 'error');
+                        }
+                        
+                        if (isLoggedIn) {
+                            try {
+                                liff.getProfile().then(profile => {
+                                    addDebugLog(`👤 用戶名稱: ${profile.displayName}`, 'success');
+                                    addDebugLog(`👤 用戶ID: ${profile.userId}`, 'success');
+                                }).catch(profileError => {
+                                    addDebugLog(`❌ 取得用戶資訊失敗: ${profileError.message}`, 'error');
+                                });
+                            } catch (profileError) {
+                                addDebugLog(`❌ 取得用戶資訊錯誤: ${profileError.message}`, 'error');
+                            }
+                        }
+                    }
+                    
+                    // 總結狀態
+                    if (isInClient && isLoggedIn) {
+                        addDebugLog('🎉 LIFF 狀態完全正常，可以發送訊息！', 'success');
+                        showNotification('✅ LIFF 狀態正常，可以使用手機版預約', 'success');
+                    } else if (isInClient && !isLoggedIn) {
+                        addDebugLog('⚠️ 在 LINE 客戶端但未登入', 'warning');
+                        showNotification('⚠️ 在 LINE 中但未登入，請嘗試重新初始化', 'warning');
+                    } else if (!isInClient) {
+                        addDebugLog('❌ 不在 LINE 客戶端中', 'error');
+                        showNotification('❌ 不在 LINE 客戶端，請在 LINE 中開啟', 'error');
+                    }
+                    
+                } catch (error) {
+                    addDebugLog(`❌ LIFF 狀態檢查錯誤: ${error.message}`, 'error');
+                    showNotification('❌ LIFF 檢查失敗', 'error');
+                }
+            } else {
+                addDebugLog('❌ LIFF SDK 未載入', 'error');
+                showNotification('❌ LIFF SDK 未載入', 'error');
+            }
+            
+            addDebugLog('🔍 === 狀態檢查完成 ===', 'info');
+        }
+
+        // 💡 強化版強制重新初始化函數
+        async function forceReinitializeLiff() {
+            addDebugLog('🔄 === 開始強制重新初始化 LIFF ===', 'info');
+            
+            showNotification('🔄 正在重新初始化 LIFF...', 'loading');
+            
+            try {
+                // 重置狀態
+                liffInitialized = false;
+                liffReady = false;
+                addDebugLog('✅ 重置 LIFF 狀態變數', 'success');
+                
+                // 等待一下確保重置完成
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // 重新初始化
+                await initializeLiff();
+                
+                // 檢查結果
+                if (typeof liff !== 'undefined' && liff.isInClient() && liff.isLoggedIn()) {
+                    addDebugLog('🎉 重新初始化成功！', 'success');
+                    showNotification('✅ LIFF 重新初始化成功！', 'success');
+                    
+                    // 自動檢查狀態
+                    setTimeout(checkLiffStatus, 1000);
+                    
+                    return true;
+                } else {
+                    addDebugLog('❌ 重新初始化後狀態仍不正常', 'error');
+                    showNotification('❌ 重新初始化失敗，狀態仍異常', 'error');
+                    return false;
+                }
+                
+            } catch (error) {
+                addDebugLog(`❌ 重新初始化過程發生錯誤: ${error.message}`, 'error');
+                showNotification(`❌ 重新初始化失敗: ${error.message}`, 'error');
+                return false;
             }
         }
 
@@ -2130,7 +2294,7 @@
             }
         }
 
-        // 💡 新增除錯按鈕功能
+        // 💡 新增除錯按鈕功能 - 強化版
         function addDebugButton() {
             if (!isDebugMode) return;
             
@@ -2141,26 +2305,32 @@
                     checkLiffStatus();
                 };
                 
-                // 新增 LIFF 測試按鈕
-                const testBtn = document.createElement('button');
-                testBtn.style.cssText = `
-                    position: fixed;
-                    top: 20px;
-                    left: 120px;
-                    z-index: 999;
-                    background: #28a745;
-                    color: white;
-                    border: none;
-                    padding: 10px 15px;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    font-size: 12px;
-                `;
-                testBtn.textContent = '🧪 測試 LIFF';
-                testBtn.onclick = function() {
-                    executeReservationMobile('TEST001', 1);
-                };
-                document.body.appendChild(testBtn);
+                // 新增多個測試按鈕
+                const buttonConfigs = [
+                    { text: '🧪 測試 LIFF', color: '#28a745', left: '120px', action: () => executeReservationMobile('TEST001', 1) },
+                    { text: '🔄 重新初始化', color: '#ffc107', left: '220px', action: forceReinitializeLiff },
+                    { text: '🔍 檢查狀態', color: '#17a2b8', left: '340px', action: checkLiffStatus }
+                ];
+                
+                buttonConfigs.forEach(config => {
+                    const btn = document.createElement('button');
+                    btn.style.cssText = `
+                        position: fixed;
+                        top: 20px;
+                        left: ${config.left};
+                        z-index: 999;
+                        background: ${config.color};
+                        color: white;
+                        border: none;
+                        padding: 8px 12px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-size: 11px;
+                    `;
+                    btn.textContent = config.text;
+                    btn.onclick = config.action;
+                    document.body.appendChild(btn);
+                });
             }
         }
 
